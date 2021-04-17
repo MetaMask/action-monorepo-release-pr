@@ -1,25 +1,21 @@
-name: "units-test"
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - 'releases/*'
+name: "Tests"
+on: push
 
 jobs:
-  # unit tests
-  units:
+  # linting and unit tests
+  lint-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - run: npm ci
-    - run: npm test
+    - run: yarn install --ignore-scripts
+    - run: yarn lint
+    - run: yarn test
 
   # test action works running from the graph
-  test:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - uses: ./
-      with:
-        milliseconds: 1000
+  # action-test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #   - uses: actions/checkout@v2
+  #   - uses: ./
+  #     with:
+  #       milliseconds: 1000
