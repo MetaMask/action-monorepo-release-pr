@@ -1,13 +1,26 @@
-name: 'Wait'
-description: 'Wait a designated number of milliseconds'
+name: 'Create Monorepo Release PR'
+description: 'Bump monorepo package versions and create a release PR.'
 inputs:
-  milliseconds:  # id of input
-    description: 'number of milliseconds to wait'
-    required: true
-    default: '1000'
-outputs:
-  time: # output will be available to future steps
-    description: 'The message to output'
+  bump-type:
+    description: 'A semver version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "bump-version".'
+    required: false
+  bump-version:
+    description: 'A specific version to bump to. Mutually exclusive with "bump-type".'
+    required: false
+  # ignore-semver-checks:
+  #   default: false
+  #   description: 'Whether to ignore semver validation checks. Only used with "bump-version".'
+  #   required: false
+  # debug:
+  #   default: false
+  #   description: 'Whether the action is being tested.'
+  #   required: false
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
+  using: 'composite'
+  steps:
+    - id: bump-versions
+      run: node $GITHUB_ACTION_PATH/dist/index.js
+      shell: bash
+    - id: create-release-pr
+      run: $GITHUB_ACTION_PATH/src/create-release-pr.sh
+      shell: bash
