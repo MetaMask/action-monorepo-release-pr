@@ -1,6 +1,6 @@
 import pathUtils from 'path';
 import semver from 'semver';
-import simpleGit from 'simple-git';
+import execa from 'execa';
 import { PackageMetadata } from './package-operations';
 import { isValidSemVer, WORKSPACE } from './utils';
 
@@ -8,8 +8,8 @@ const HEAD = 'HEAD';
 
 type DiffMap = Map<string, string[]>;
 
-let git: ReturnType<typeof simpleGit>;
-let TAGS: string[];
+let INITIALIZED_GIT = false;
+let TAGS: Readonly<string[]>;
 const DIFFS: DiffMap = new Map();
 
 export async function didPackageChange(
@@ -49,27 +49,42 @@ async function getDiff(tag: string, packagesDir: string): Promise<string[]> {
   }
 
   const diff = (
-    await git.diff([tag, HEAD, '--name-only', '--', packagesDir])
+    await performGitOperation(
+      'diff',
+      tag,
+      HEAD,
+      '--name-only',
+      '--',
+      packagesDir,
+    )
   ).split('\n');
   DIFFS.set(tag, diff);
   return diff;
 }
 
 async function initGit() {
-  if (!git) {
-    git = simpleGit({ baseDir: WORKSPACE });
+  if (!INITIALIZED_GIT) {
+    INITIALIZED_GIT = true;
     [TAGS] = await getTags();
   }
 }
 
-async function getTags() {
-  const { all, latest } = await git.tags();
-  if (!latest || !isValidSemVer(semver.clean(latest))) {
+async function getTags(): Promise<Readonly<[string[], string]>> {
+  const rawTags = await performGitOperation('tag');
+  const allTags = rawTags.split('\n');
+  const latestTag = allTags[allTags.length - 1];
+  if (!latestTag || !isValidSemVer(semver.clean(latestTag))) {
     throw new Error(
-      `Invalid latest tag. Expected a valid SemVer version. Received: ${latest}`,
+      `Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`,
     );
   }
-  return [all, latest] as const;
+  return [allTags, latestTag] as const;
+}
+
+async function performGitOperation(command: string, ...args: string[]) {
+  return (
+    await execa('git', [command, ...args], { cwd: WORKSPACE })
+  ).stdout.trim();
 }
 
 function versionToTag(version: string) {
