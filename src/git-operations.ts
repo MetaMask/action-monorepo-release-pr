@@ -2,7 +2,7 @@ import pathUtils from 'path';
 import semver from 'semver';
 import execa from 'execa';
 import { PackageMetadata } from './package-operations';
-import { isValidSemVer, WORKSPACE } from './utils';
+import { isValidSemVer, WORKSPACE_ROOT } from './utils';
 
 const HEAD = 'HEAD';
 
@@ -12,11 +12,18 @@ let INITIALIZED_GIT = false;
 let TAGS: Readonly<string[]>;
 const DIFFS: DiffMap = new Map();
 
+async function initializeGit() {
+  if (!INITIALIZED_GIT) {
+    INITIALIZED_GIT = true;
+    [TAGS] = await getTags();
+  }
+}
+
 export async function didPackageChange(
   packageData: PackageMetadata,
   packagesDir = 'packages',
 ): Promise<boolean> {
-  await initGit();
+  await initializeGit();
 
   const {
     manifest: { name: packageName, version: currentVersion },
@@ -58,15 +65,9 @@ async function getDiff(tag: string, packagesDir: string): Promise<string[]> {
       packagesDir,
     )
   ).split('\n');
+
   DIFFS.set(tag, diff);
   return diff;
-}
-
-async function initGit() {
-  if (!INITIALIZED_GIT) {
-    INITIALIZED_GIT = true;
-    [TAGS] = await getTags();
-  }
 }
 
 async function getTags(): Promise<Readonly<[string[], string]>> {
@@ -83,7 +84,7 @@ async function getTags(): Promise<Readonly<[string[], string]>> {
 
 async function performGitOperation(command: string, ...args: string[]) {
   return (
-    await execa('git', [command, ...args], { cwd: WORKSPACE })
+    await execa('git', [command, ...args], { cwd: WORKSPACE_ROOT })
   ).stdout.trim();
 }
 

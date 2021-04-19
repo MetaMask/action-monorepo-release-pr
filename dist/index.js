@@ -6127,49 +6127,54 @@ var execa_default = /*#__PURE__*/__nccwpck_require__.n(execa);
 /**
  * The names of the inputs to the Action, per action.yml.
  */
-const INPUT_NAMES = {
-    BUMP_TYPE: 'bump-type',
-    BUMP_VERSION: 'bump-version',
-};
-// Get the inputs to the Action.
+var InputNames;
+(function (InputNames) {
+    InputNames["BUMP_TYPE"] = "bump-type";
+    InputNames["BUMP_VERSION"] = "bump-version";
+})(InputNames || (InputNames = {}));
+/**
+ * The actual inputs to the Action.
+ */
 const INPUTS = {
-    BUMP_TYPE: (0,core.getInput)(INPUT_NAMES.BUMP_TYPE) || null,
-    BUMP_VERSION: (0,core.getInput)(INPUT_NAMES.BUMP_VERSION) || null,
+    BUMP_TYPE: (0,core.getInput)(InputNames.BUMP_TYPE) || null,
+    BUMP_VERSION: (0,core.getInput)(InputNames.BUMP_VERSION) || null,
 };
-const WORKSPACE = process.env.GITHUB_WORKSPACE;
-const TAB = '  ';
-var SEMVER_DIFFS;
-(function (SEMVER_DIFFS) {
-    SEMVER_DIFFS["major"] = "major";
-    SEMVER_DIFFS["minor"] = "minor";
-    SEMVER_DIFFS["patch"] = "patch";
-})(SEMVER_DIFFS || (SEMVER_DIFFS = {}));
+const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
+const TWO_SPACES = '  ';
+var AcceptedSemVerDiffs;
+(function (AcceptedSemVerDiffs) {
+    AcceptedSemVerDiffs["Major"] = "major";
+    AcceptedSemVerDiffs["Minor"] = "minor";
+    AcceptedSemVerDiffs["Patch"] = "patch";
+})(AcceptedSemVerDiffs || (AcceptedSemVerDiffs = {}));
 //---------------------------------------------
-// GitHub Action Utilities
+// Utility Functions
 //---------------------------------------------
 /**
- * Validates the inputs to the Action. Throws an error if validation fails.
+ * Validates the inputs to the Action, defined earlier in this file.
+ * Throws an error if validation fails.
  */
 function validateInputs() {
     if (!INPUTS.BUMP_TYPE && !INPUTS.BUMP_VERSION) {
-        throw new Error(`Must specify either "${INPUT_NAMES.BUMP_TYPE}" or "${INPUT_NAMES.BUMP_VERSION}".`);
+        throw new Error(`Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}".`);
     }
     if (INPUTS.BUMP_TYPE && INPUTS.BUMP_VERSION) {
-        throw new Error(`Must specify either "${INPUT_NAMES.BUMP_TYPE}" or "${INPUT_NAMES.BUMP_VERSION}", not both.`);
+        throw new Error(`Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}", not both.`);
     }
-    if (INPUTS.BUMP_TYPE && !(INPUTS.BUMP_TYPE in SEMVER_DIFFS)) {
+    if (INPUTS.BUMP_TYPE && !(INPUTS.BUMP_TYPE in AcceptedSemVerDiffs)) {
         const tab = tabs(1, '\n');
-        throw new Error(`Unrecognized "${INPUT_NAMES.BUMP_TYPE}". Must be one of:${tab}${Object.keys(SEMVER_DIFFS).join(tab)}`);
+        throw new Error(`Unrecognized "${InputNames.BUMP_TYPE}". Must be one of:${tab}${Object.keys(AcceptedSemVerDiffs).join(tab)}`);
     }
     if (INPUTS.BUMP_VERSION) {
         if (!isValidSemVer(INPUTS.BUMP_VERSION)) {
-            throw new Error(`"${INPUT_NAMES.BUMP_VERSION}" must be a plain semver version string. Received: ${INPUTS.BUMP_VERSION}`);
+            throw new Error(`"${InputNames.BUMP_VERSION}" must be a plain semver version string. Received: ${INPUTS.BUMP_VERSION}`);
         }
     }
 }
-//---------------------------------------------
-// Miscellaneous
-//---------------------------------------------
+/**
+ * @param value - The value to test.
+ * @returns Whether the value is a non-empty string.
+ */
 function isTruthyString(value) {
     return Boolean(value) && typeof value === 'string';
 }
@@ -6217,7 +6222,7 @@ function tabs(numTabs, prefix) {
     if (!Number.isInteger(numTabs) || numTabs < 0) {
         throw new Error('Expected positive integer.');
     }
-    const tab = prefix ? `{${prefix}${TAB}}` : TAB;
+    const tab = prefix ? `{${prefix}${TWO_SPACES}}` : TWO_SPACES;
     if (numTabs === 1) {
         return tab;
     }
@@ -6233,8 +6238,14 @@ const HEAD = 'HEAD';
 let INITIALIZED_GIT = false;
 let TAGS;
 const DIFFS = new Map();
+async function initializeGit() {
+    if (!INITIALIZED_GIT) {
+        INITIALIZED_GIT = true;
+        [TAGS] = await getTags();
+    }
+}
 async function didPackageChange(packageData, packagesDir = 'packages') {
-    await initGit();
+    await initializeGit();
     const { manifest: { name: packageName, version: currentVersion }, } = packageData;
     const tagOfCurrentVersion = versionToTag(currentVersion);
     if (!TAGS.includes(tagOfCurrentVersion)) {
@@ -6256,12 +6267,6 @@ async function getDiff(tag, packagesDir) {
     DIFFS.set(tag, diff);
     return diff;
 }
-async function initGit() {
-    if (!INITIALIZED_GIT) {
-        INITIALIZED_GIT = true;
-        [TAGS] = await getTags();
-    }
-}
 async function getTags() {
     const rawTags = await performGitOperation('tag');
     const allTags = rawTags.split('\n');
@@ -6272,7 +6277,7 @@ async function getTags() {
     return [allTags, latestTag];
 }
 async function performGitOperation(command, ...args) {
-    return (await execa_default()('git', [command, ...args], { cwd: WORKSPACE })).stdout.trim();
+    return (await execa_default()('git', [command, ...args], { cwd: WORKSPACE_ROOT })).stdout.trim();
 }
 function versionToTag(version) {
     return `v${version}`;
@@ -6284,13 +6289,13 @@ function versionToTag(version) {
 
 
 const PACKAGE_JSON = 'package.json';
-var BUMP_SCOPES;
-(function (BUMP_SCOPES) {
-    BUMP_SCOPES["all"] = "all";
-    BUMP_SCOPES["changed"] = "changed";
-})(BUMP_SCOPES || (BUMP_SCOPES = {}));
+var BumpScopes;
+(function (BumpScopes) {
+    BumpScopes["All"] = "all";
+    BumpScopes["Changed"] = "changed";
+})(BumpScopes || (BumpScopes = {}));
 async function getPackagesMetadata(args = {
-    rootDir: WORKSPACE,
+    rootDir: WORKSPACE_ROOT,
     packagesDir: 'packages',
 }) {
     const { rootDir, packagesDir } = args;
@@ -6315,9 +6320,9 @@ async function getPackagesMetadata(args = {
  * Get the scope of the version bump.
  */
 function getBumpScope(bumpType) {
-    return bumpType === SEMVER_DIFFS.patch
-        ? BUMP_SCOPES.changed
-        : BUMP_SCOPES.all;
+    return bumpType === AcceptedSemVerDiffs.Patch
+        ? BumpScopes.Changed
+        : BumpScopes.All;
 }
 /**
  * Given the Action's bump type parameter... TODO
@@ -6325,7 +6330,7 @@ function getBumpScope(bumpType) {
  */
 async function getPackagesToUpdate(allPackages, bumpType) {
     const bumpScope = getBumpScope(bumpType);
-    if (bumpScope === BUMP_SCOPES.changed) {
+    if (bumpScope === BumpScopes.Changed) {
         return Object.keys(allPackages).filter(async (packageName) => {
             return await didPackageChange(allPackages[packageName]);
         });
@@ -6356,7 +6361,7 @@ async function getPackageManifest(containingDirPath, requiredFields) {
     return manifest;
 }
 function validatePackageManifest(path, manifest, requiredFields = ['name', 'version']) {
-    const legiblePath = external_path_default().resolve(WORKSPACE, path);
+    const legiblePath = external_path_default().resolve(WORKSPACE_ROOT, path);
     if (requiredFields.includes('name') && !isTruthyString(manifest.name)) {
         throw new Error(`Manifest at path "${legiblePath}" does not have a valid "name" field.`);
     }
@@ -6375,7 +6380,7 @@ main().catch((error) => {
 });
 async function main() {
     validateInputs();
-    const rootManifest = await getPackageManifest(WORKSPACE, ['version']);
+    const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     let newVersion;
     if (INPUTS.BUMP_TYPE) {
         const { version: currentVersion } = rootManifest;

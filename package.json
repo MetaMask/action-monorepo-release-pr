@@ -9,7 +9,7 @@
   },
   "scripts": {
     "lint:eslint": "yarn eslint . --ext js,ts",
-    "lint:json": "prettier **/*.json",
+    "lint:json": "prettier **/*.json --ignore-path .gitignore",
     "lint": "yarn lint:eslint && yarn lint:json --check",
     "lint:fix": "yarn lint:eslint --fix && yarn lint:json --write",
     "build:clean": "mkdir -p lib && rm -rf lib/* && mkdir -p dist && rm -rf dist/*",

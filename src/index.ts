@@ -7,7 +7,7 @@ import {
   updatePackages,
   getPackageManifest,
 } from './package-operations';
-import { WORKSPACE, INPUTS, validateInputs } from './utils';
+import { WORKSPACE_ROOT, INPUTS, validateInputs } from './utils';
 
 main().catch((error) => {
   setActionToFailed(error);
@@ -16,7 +16,7 @@ main().catch((error) => {
 async function main(): Promise<void> {
   validateInputs();
 
-  const rootManifest = await getPackageManifest(WORKSPACE, ['version']);
+  const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
 
   let newVersion: string;
   if (INPUTS.BUMP_TYPE) {

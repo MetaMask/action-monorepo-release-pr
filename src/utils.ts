@@ -22,77 +22,79 @@ declare global {
 /**
  * The names of the inputs to the Action, per action.yml.
  */
-export const INPUT_NAMES = {
-  BUMP_TYPE: 'bump-type',
-  BUMP_VERSION: 'bump-version',
-};
-
-// Get the inputs to the Action.
-export const INPUTS: ActionInputs = {
-  BUMP_TYPE:
-    (getActionInput(INPUT_NAMES.BUMP_TYPE) as AcceptedSemVerDiff) || null,
-  BUMP_VERSION: getActionInput(INPUT_NAMES.BUMP_VERSION) || null,
-};
-
-export const WORKSPACE = process.env.GITHUB_WORKSPACE;
-const TAB = '  ';
-
-export enum SEMVER_DIFFS {
-  major = 'major',
-  minor = 'minor',
-  patch = 'patch',
+enum InputNames {
+  BUMP_TYPE = 'bump-type',
+  BUMP_VERSION = 'bump-version',
 }
 
-export type AcceptedSemVerDiff = keyof typeof SEMVER_DIFFS;
+/**
+ * The actual inputs to the Action.
+ */
+export const INPUTS: ActionInputs = {
+  BUMP_TYPE:
+    (getActionInput(InputNames.BUMP_TYPE) as AcceptedSemVerDiffs) || null,
+  BUMP_VERSION: getActionInput(InputNames.BUMP_VERSION) || null,
+};
+
+export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
+
+const TWO_SPACES = '  ';
+
+export enum AcceptedSemVerDiffs {
+  Major = 'major',
+  Minor = 'minor',
+  Patch = 'patch',
+}
 
 export interface ActionInputs {
-  BUMP_TYPE: AcceptedSemVerDiff | null;
-  BUMP_VERSION: string | null;
+  readonly BUMP_TYPE: AcceptedSemVerDiffs | null;
+  readonly BUMP_VERSION: string | null;
 }
 
 //---------------------------------------------
-// GitHub Action Utilities
+// Utility Functions
 //---------------------------------------------
 
 /**
- * Validates the inputs to the Action. Throws an error if validation fails.
+ * Validates the inputs to the Action, defined earlier in this file.
+ * Throws an error if validation fails.
  */
 export function validateInputs(): void {
   if (!INPUTS.BUMP_TYPE && !INPUTS.BUMP_VERSION) {
     throw new Error(
-      `Must specify either "${INPUT_NAMES.BUMP_TYPE}" or "${INPUT_NAMES.BUMP_VERSION}".`,
+      `Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}".`,
     );
   }
 
   if (INPUTS.BUMP_TYPE && INPUTS.BUMP_VERSION) {
     throw new Error(
-      `Must specify either "${INPUT_NAMES.BUMP_TYPE}" or "${INPUT_NAMES.BUMP_VERSION}", not both.`,
+      `Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}", not both.`,
     );
   }
 
-  if (INPUTS.BUMP_TYPE && !(INPUTS.BUMP_TYPE in SEMVER_DIFFS)) {
+  if (INPUTS.BUMP_TYPE && !(INPUTS.BUMP_TYPE in AcceptedSemVerDiffs)) {
     const tab = tabs(1, '\n');
     throw new Error(
       `Unrecognized "${
-        INPUT_NAMES.BUMP_TYPE
-      }". Must be one of:${tab}${Object.keys(SEMVER_DIFFS).join(tab)}`,
+        InputNames.BUMP_TYPE
+      }". Must be one of:${tab}${Object.keys(AcceptedSemVerDiffs).join(tab)}`,
     );
   }
 
   if (INPUTS.BUMP_VERSION) {
     if (!isValidSemVer(INPUTS.BUMP_VERSION)) {
       throw new Error(
-        `"${INPUT_NAMES.BUMP_VERSION}" must be a plain semver version string. Received: ${INPUTS.BUMP_VERSION}`,
+        `"${InputNames.BUMP_VERSION}" must be a plain semver version string. Received: ${INPUTS.BUMP_VERSION}`,
       );
     }
   }
 }
 
-//---------------------------------------------
-// Miscellaneous
-//---------------------------------------------
-
-export function isTruthyString(value: unknown): boolean {
+/**
+ * @param value - The value to test.
+ * @returns Whether the value is a non-empty string.
+ */
+export function isTruthyString(value: unknown): value is string {
   return Boolean(value) && typeof value === 'string';
 }
 
@@ -150,7 +152,7 @@ export function tabs(numTabs: number, prefix?: string): string {
     throw new Error('Expected positive integer.');
   }
 
-  const tab = prefix ? `{${prefix}${TAB}}` : TAB;
+  const tab = prefix ? `{${prefix}${TWO_SPACES}}` : TWO_SPACES;
 
   if (numTabs === 1) {
     return tab;

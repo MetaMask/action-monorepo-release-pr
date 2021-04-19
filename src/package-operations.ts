@@ -2,22 +2,19 @@ import { promises as fs } from 'fs';
 import pathUtils from 'path';
 import { didPackageChange } from './git-operations';
 import {
-  AcceptedSemVerDiff,
   isTruthyString,
   isValidSemVer,
   readJsonFile,
-  SEMVER_DIFFS,
-  WORKSPACE,
+  AcceptedSemVerDiffs,
+  WORKSPACE_ROOT,
 } from './utils';
 
 const PACKAGE_JSON = 'package.json';
 
-enum BUMP_SCOPES {
-  all = 'all',
-  changed = 'changed',
+enum BumpScopes {
+  All = 'all',
+  Changed = 'changed',
 }
-
-type BumpScope = keyof typeof BUMP_SCOPES;
 
 export interface PackageManifest {
   readonly name: string;
@@ -37,7 +34,7 @@ interface GetPackageMetadataArgs {
 
 export async function getPackagesMetadata(
   args: GetPackageMetadataArgs = {
-    rootDir: WORKSPACE,
+    rootDir: WORKSPACE_ROOT,
     packagesDir: 'packages',
   },
 ): Promise<Record<string, PackageMetadata>> {
@@ -67,10 +64,10 @@ export async function getPackagesMetadata(
 /**
  * Get the scope of the version bump.
  */
-function getBumpScope(bumpType: AcceptedSemVerDiff | null): BumpScope {
-  return bumpType === SEMVER_DIFFS.patch
-    ? BUMP_SCOPES.changed
-    : BUMP_SCOPES.all;
+function getBumpScope(bumpType: AcceptedSemVerDiffs | null): BumpScopes {
+  return bumpType === AcceptedSemVerDiffs.Patch
+    ? BumpScopes.Changed
+    : BumpScopes.All;
 }
 
 /**
@@ -79,10 +76,10 @@ function getBumpScope(bumpType: AcceptedSemVerDiff | null): BumpScope {
  */
 export async function getPackagesToUpdate(
   allPackages: Record<string, PackageMetadata>,
-  bumpType: AcceptedSemVerDiff | null,
-): Promise<(keyof typeof allPackages)[]> {
+  bumpType: AcceptedSemVerDiffs | null,
+): Promise<string[]> {
   const bumpScope = getBumpScope(bumpType);
-  if (bumpScope === BUMP_SCOPES.changed) {
+  if (bumpScope === BumpScopes.Changed) {
     return Object.keys(allPackages).filter(async (packageName) => {
       return await didPackageChange(allPackages[packageName]);
     });
@@ -145,7 +142,7 @@ function validatePackageManifest(
   manifest: Record<string, unknown>,
   requiredFields: (keyof PackageManifest)[] = ['name', 'version'],
 ): void {
-  const legiblePath = pathUtils.resolve(WORKSPACE, path);
+  const legiblePath = pathUtils.resolve(WORKSPACE_ROOT, path);
   if (requiredFields.includes('name') && !isTruthyString(manifest.name)) {
     throw new Error(
       `Manifest at path "${legiblePath}" does not have a valid "name" field.`,
