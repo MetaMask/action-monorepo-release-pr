@@ -7,7 +7,7 @@ import {
   isTruthyString,
   isValidSemver,
   readJsonFile,
-  ValidSemverReleaseTypes,
+  AcceptedSemverReleaseTypes,
   WORKSPACE_ROOT,
 } from './utils';
 
@@ -224,5 +224,5 @@ function validatePackageManifest(
 }
 
 export function isMajorSemverDiff(diff: SemverReleaseType): boolean {
-  return diff.includes(ValidSemverReleaseTypes.Major);
+  return diff.includes(AcceptedSemverReleaseTypes.Major);
 }

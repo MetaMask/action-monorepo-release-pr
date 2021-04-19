@@ -7,7 +7,7 @@ import semverParse from 'semver/functions/parse';
 //---------------------------------------------
 
 /**
- * Correctly type "process.env".
+ * Add missing properties to "process.env".
  */
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -22,7 +22,7 @@ declare global {
 /**
  * The names of the inputs to the Action, per action.yml.
  */
-enum InputNames {
+export enum InputNames {
   ReleaseType = 'release-type',
   ReleaseVersion = 'release-version',
 }
@@ -34,14 +34,14 @@ const TWO_SPACES = '  ';
 /**
  * SemVer release types that are accepted by this action.
  */
-export enum ValidSemverReleaseTypes {
+export enum AcceptedSemverReleaseTypes {
   Major = 'major',
   Minor = 'minor',
   Patch = 'patch',
 }
 
 export interface ActionInputs {
-  readonly ReleaseType: ValidSemverReleaseTypes | null;
+  readonly ReleaseType: AcceptedSemverReleaseTypes | null;
   readonly ReleaseVersion: string | null;
 }
 
@@ -49,10 +49,17 @@ export interface ActionInputs {
 // Utility Functions
 //---------------------------------------------
 
+/**
+ * Validates and returns the inputs to the Action.
+ * We perform additional validation because the GitHub Actions configuration
+ * syntax is insufficient to express the requirements we have of our inputs.
+ * 
+ * @returns The parsed and validated inputs to the Action.
+ */
 export function getActionInputs(): ActionInputs {
   const inputs: ActionInputs = {
     ReleaseType:
-      (getActionInput(InputNames.ReleaseType) as ValidSemverReleaseTypes) ||
+      (getActionInput(InputNames.ReleaseType) as AcceptedSemverReleaseTypes) ||
       null,
     ReleaseVersion: getActionInput(InputNames.ReleaseVersion) || null,
   };
@@ -64,7 +71,7 @@ export function getActionInputs(): ActionInputs {
  * Validates the inputs to the Action, defined earlier in this file.
  * Throws an error if validation fails.
  */
-export function validateActionInputs(inputs: ActionInputs): void {
+function validateActionInputs(inputs: ActionInputs): void {
   if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
     throw new Error(
       `Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`,
@@ -77,12 +84,15 @@ export function validateActionInputs(inputs: ActionInputs): void {
     );
   }
 
-  if (inputs.ReleaseType && !(inputs.ReleaseType in ValidSemverReleaseTypes)) {
+  if (
+    inputs.ReleaseType &&
+    !Object.values(AcceptedSemverReleaseTypes).includes(inputs.ReleaseType)
+  ) {
     const tab = tabs(1, '\n');
     throw new Error(
       `Unrecognized "${
         InputNames.ReleaseType
-      }". Must be one of:${tab}${Object.keys(ValidSemverReleaseTypes).join(
+      }". Must be one of:${tab}${Object.keys(AcceptedSemverReleaseTypes).join(
         tab,
       )}`,
     );
@@ -95,14 +105,6 @@ export function validateActionInputs(inputs: ActionInputs): void {
       );
     }
   }
-}
-
-/**
- * @param value - The value to test.
- * @returns Whether the value is a non-empty string.
- */
-export function isTruthyString(value: unknown): value is string {
-  return Boolean(value) && typeof value === 'string';
 }
 
 /**
@@ -149,20 +151,28 @@ export function isValidSemver(value: unknown): value is string {
 }
 
 /**
+ * @param value - The value to test.
+ * @returns Whether the value is a non-empty string.
+ */
+export function isTruthyString(value: unknown): value is string {
+  return Boolean(value) && typeof value === 'string';
+}
+
+/**
  * @param numTabs - The number of tabs to return. A tab consists of two spaces.
  * @param prefix - The prefix to prepend to the returned string, if any.
  * @returns A string consisting of the prefix, if any, and the requested number
  * of tabs.
  */
 export function tabs(numTabs: number, prefix?: string): string {
-  if (!Number.isInteger(numTabs) || numTabs < 0) {
+  if (!Number.isInteger(numTabs) || numTabs < 1) {
     throw new Error('Expected positive integer.');
   }
 
-  const tab = prefix ? `{${prefix}${TWO_SPACES}}` : TWO_SPACES;
+  const firstTab = prefix ? `${prefix}${TWO_SPACES}` : TWO_SPACES;
 
   if (numTabs === 1) {
-    return tab;
+    return firstTab;
   }
-  return tab + new Array(numTabs).join(tab);
+  return firstTab + new Array(numTabs).join(TWO_SPACES);
 }
