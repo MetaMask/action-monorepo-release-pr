@@ -1,5 +1,5 @@
 import pathUtils from 'path';
-import semver from 'semver';
+import semverClean from 'semver/functions/clean';
 import execa from 'execa';
 import { PackageMetadata } from './package-operations';
 import { isValidSemVer, WORKSPACE_ROOT } from './utils';
@@ -36,21 +36,24 @@ export async function didPackageChange(
     );
   }
 
-  return performDiff(packageData, tagOfCurrentVersion, packagesDir);
+  return hasDiff(packageData, tagOfCurrentVersion, packagesDir);
 }
 
-async function performDiff(
+async function hasDiff(
   packageData: PackageMetadata,
   tag: string,
   packagesDir: string,
 ): Promise<boolean> {
   const { dirName: packageDirName } = packageData;
-  const diff = await getDiff(tag, packagesDir);
+  const diff = await performDiff(tag, packagesDir);
   const packagePathPrefix = pathUtils.join(packagesDir, packageDirName);
   return diff.some((diffPath) => diffPath.startsWith(packagePathPrefix));
 }
 
-async function getDiff(tag: string, packagesDir: string): Promise<string[]> {
+async function performDiff(
+  tag: string,
+  packagesDir: string,
+): Promise<string[]> {
   if (DIFFS.has(tag)) {
     return DIFFS.get(tag) as string[];
   }
@@ -74,7 +77,7 @@ async function getTags(): Promise<Readonly<[string[], string]>> {
   const rawTags = await performGitOperation('tag');
   const allTags = rawTags.split('\n');
   const latestTag = allTags[allTags.length - 1];
-  if (!latestTag || !isValidSemVer(semver.clean(latestTag))) {
+  if (!latestTag || !isValidSemVer(semverClean(latestTag))) {
     throw new Error(
       `Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`,
     );

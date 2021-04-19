@@ -1,5 +1,7 @@
 import { promises as fs } from 'fs';
 import pathUtils from 'path';
+import type { ReleaseType } from 'semver';
+
 import { didPackageChange } from './git-operations';
 import {
   isTruthyString,
@@ -11,20 +13,31 @@ import {
 
 const PACKAGE_JSON = 'package.json';
 
-enum BumpScopes {
-  All = 'all',
-  Changed = 'changed',
+enum PackageDependencyFields {
+  Production = 'dependencies',
+  Development = 'devDependencies',
+  Peer = 'peerDependencies',
 }
 
 export interface PackageManifest {
   readonly name: string;
   readonly version: string;
+  readonly [PackageDependencyFields.Production]: Record<string, string>;
+  readonly [PackageDependencyFields.Development]: Record<string, string>;
+  readonly [PackageDependencyFields.Peer]: Record<string, string>;
 }
+
 export interface PackageMetadata {
   readonly dirName: string;
   readonly manifest: Readonly<PackageManifest>;
   readonly name: string;
   readonly path: string;
+}
+
+interface UpdateContext {
+  readonly versionDiff: ReleaseType;
+  readonly newVersion: string;
+  readonly packagesToUpdate: Set<string>;
 }
 
 interface GetPackageMetadataArgs {
@@ -62,31 +75,24 @@ export async function getPackagesMetadata(
 }
 
 /**
- * Get the scope of the version bump.
- */
-function getBumpScope(bumpType: AcceptedSemVerDiffs | null): BumpScopes {
-  return bumpType === AcceptedSemVerDiffs.Patch
-    ? BumpScopes.Changed
-    : BumpScopes.All;
-}
-
-/**
  * Given the Action's bump type parameter... TODO
  * @returns An array of the names of the packages to bump.
  */
 export async function getPackagesToUpdate(
   allPackages: Record<string, PackageMetadata>,
-  bumpType: AcceptedSemVerDiffs | null,
-): Promise<string[]> {
-  const bumpScope = getBumpScope(bumpType);
-  if (bumpScope === BumpScopes.Changed) {
-    return Object.keys(allPackages).filter(async (packageName) => {
-      return await didPackageChange(allPackages[packageName]);
-    });
+  versionDiff: ReleaseType,
+): Promise<Set<string>> {
+  // If it's a major version bump, everything will be updated.
+  if (isMajorSemVerDiff(versionDiff)) {
+    return new Set(Object.keys(allPackages));
   }
 
-  // If we're not just bumping the changed packages, we're bumping all of them.
-  return Object.keys(allPackages);
+  // If it's not a major version bump, only changed packages will be updated.
+  return new Set(
+    Object.keys(allPackages).filter(async (packageName) => {
+      return await didPackageChange(allPackages[packageName]);
+    }),
+  );
 }
 
 /**
@@ -94,28 +100,87 @@ export async function getPackagesToUpdate(
  * the version.
  */
 export async function updatePackages(
-  newVersion: string,
   allPackages: Record<string, PackageMetadata>,
-  packagesToUpdate: string[],
+  updateContext: UpdateContext,
 ): Promise<void> {
+  const { packagesToUpdate } = updateContext;
   await Promise.all(
-    Object.keys(packagesToUpdate).map(async (packageName) =>
-      updatePackage(newVersion, allPackages[packageName]),
+    Array.from(packagesToUpdate.keys()).map(async (packageName) =>
+      updatePackage(allPackages[packageName], updateContext),
     ),
   );
 }
 
 async function updatePackage(
-  newVersion: string,
   packageMetadata: PackageMetadata,
+  updateContext: UpdateContext,
 ): Promise<void> {
   await fs.writeFile(
     pathUtils.join(packageMetadata.path, PACKAGE_JSON),
     JSON.stringify(
-      { ...packageMetadata.manifest, version: newVersion },
+      getUpdatedManifest(packageMetadata.manifest, updateContext),
       null,
       2,
     ),
+  );
+}
+
+function getUpdatedManifest(
+  currentManifest: PackageManifest,
+  updateContext: UpdateContext,
+) {
+  const { newVersion, versionDiff } = updateContext;
+  if (isMajorSemVerDiff(versionDiff)) {
+    // If the new version is a major version bump, we bump our packages to said
+    // new major version in dependencies, devDependencies, and peerDependencies
+    // in all packages.
+    return {
+      ...currentManifest,
+      ...getUpdatedDependencyFields(currentManifest, updateContext),
+      version: newVersion,
+    };
+  }
+
+  // If it's not a major version bump, we assume that no breaking changes
+  // between our packages were introduced, and we leave all dependencies as they
+  // are.
+  return { ...currentManifest, version: newVersion };
+}
+
+function getUpdatedDependencyFields(
+  manifest: PackageManifest,
+  updateContext: UpdateContext,
+): Partial<Pick<PackageManifest, PackageDependencyFields>> {
+  return Object.values(PackageDependencyFields).reduce(
+    (newDepsFields: Record<string, unknown>, fieldName) => {
+      if (fieldName in manifest) {
+        newDepsFields[fieldName] = getUpdatedDependencyField(
+          manifest[fieldName],
+          updateContext,
+        );
+      }
+
+      return newDepsFields;
+    },
+    {},
+  );
+}
+
+function getUpdatedDependencyField(
+  dependencyField: Record<string, string>,
+  updateContext: UpdateContext,
+): Record<string, string> {
+  const { newVersion, packagesToUpdate } = updateContext;
+  const newVersionRange = `^${newVersion}`;
+  return Object.keys(dependencyField).reduce(
+    (newDeps: Record<string, string>, packageName) => {
+      newDeps[packageName] = packagesToUpdate.has(packageName)
+        ? newVersionRange
+        : dependencyField[packageName];
+
+      return newDeps;
+    },
+    {},
   );
 }
 
@@ -133,27 +198,33 @@ export async function getPackageManifest<T extends keyof PackageManifest>(
   const manifest = await readJsonFile(
     pathUtils.join(containingDirPath, PACKAGE_JSON),
   );
-  validatePackageManifest(containingDirPath, manifest, requiredFields);
+
+  validatePackageManifest(manifest, containingDirPath, requiredFields);
   return manifest as Pick<PackageManifest, T>;
 }
 
 function validatePackageManifest(
-  path: string,
   manifest: Record<string, unknown>,
+  manifestDirPath: string,
   requiredFields: (keyof PackageManifest)[] = ['name', 'version'],
 ): void {
-  const legiblePath = pathUtils.resolve(WORKSPACE_ROOT, path);
+  const legiblePath = manifestDirPath.split('/').splice(-2).join('/');
   if (requiredFields.includes('name') && !isTruthyString(manifest.name)) {
     throw new Error(
-      `Manifest at path "${legiblePath}" does not have a valid "name" field.`,
+      `Manifest in "${legiblePath}" does not have a valid "name" field.`,
     );
   }
 
   if (requiredFields.includes('version') && !isValidSemVer(manifest.version)) {
     throw new Error(
-      `"${
-        manifest.name || path
-      }" manifest version is not a valid SemVer version: ${manifest.version}`,
+      `${
+        `"${manifest.name}" manifest "version"` ||
+        `"version" of manifest in "${legiblePath}"`
+      } is not a valid SemVer version: ${manifest.version}`,
     );
   }
+}
+
+function isMajorSemVerDiff(diff: ReleaseType): boolean {
+  return diff.includes(AcceptedSemVerDiffs.Major);
 }

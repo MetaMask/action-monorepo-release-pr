@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { getInput as getActionInput } from '@actions/core';
-import semver from 'semver';
+import semverParse from 'semver/functions/parse';
 
 //---------------------------------------------
 // Constants & Types
@@ -23,18 +23,9 @@ declare global {
  * The names of the inputs to the Action, per action.yml.
  */
 enum InputNames {
-  BUMP_TYPE = 'bump-type',
-  BUMP_VERSION = 'bump-version',
+  BumpType = 'bump-type',
+  BumpVersion = 'bump-version',
 }
-
-/**
- * The actual inputs to the Action.
- */
-export const INPUTS: ActionInputs = {
-  BUMP_TYPE:
-    (getActionInput(InputNames.BUMP_TYPE) as AcceptedSemVerDiffs) || null,
-  BUMP_VERSION: getActionInput(InputNames.BUMP_VERSION) || null,
-};
 
 export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 
@@ -47,44 +38,54 @@ export enum AcceptedSemVerDiffs {
 }
 
 export interface ActionInputs {
-  readonly BUMP_TYPE: AcceptedSemVerDiffs | null;
-  readonly BUMP_VERSION: string | null;
+  readonly BumpType: AcceptedSemVerDiffs | null;
+  readonly BumpVersion: string | null;
 }
 
 //---------------------------------------------
 // Utility Functions
 //---------------------------------------------
 
+export function getActionInputs(): ActionInputs {
+  const inputs: ActionInputs = {
+    BumpType:
+      (getActionInput(InputNames.BumpType) as AcceptedSemVerDiffs) || null,
+    BumpVersion: getActionInput(InputNames.BumpVersion) || null,
+  };
+  validateActionInputs(inputs);
+  return inputs;
+}
+
 /**
  * Validates the inputs to the Action, defined earlier in this file.
  * Throws an error if validation fails.
  */
-export function validateInputs(): void {
-  if (!INPUTS.BUMP_TYPE && !INPUTS.BUMP_VERSION) {
+export function validateActionInputs(inputs: ActionInputs): void {
+  if (!inputs.BumpType && !inputs.BumpVersion) {
     throw new Error(
-      `Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}".`,
+      `Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}".`,
     );
   }
 
-  if (INPUTS.BUMP_TYPE && INPUTS.BUMP_VERSION) {
+  if (inputs.BumpType && inputs.BumpVersion) {
     throw new Error(
-      `Must specify either "${InputNames.BUMP_TYPE}" or "${InputNames.BUMP_VERSION}", not both.`,
+      `Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}", not both.`,
     );
   }
 
-  if (INPUTS.BUMP_TYPE && !(INPUTS.BUMP_TYPE in AcceptedSemVerDiffs)) {
+  if (inputs.BumpType && !(inputs.BumpType in AcceptedSemVerDiffs)) {
     const tab = tabs(1, '\n');
     throw new Error(
       `Unrecognized "${
-        InputNames.BUMP_TYPE
+        InputNames.BumpType
       }". Must be one of:${tab}${Object.keys(AcceptedSemVerDiffs).join(tab)}`,
     );
   }
 
-  if (INPUTS.BUMP_VERSION) {
-    if (!isValidSemVer(INPUTS.BUMP_VERSION)) {
+  if (inputs.BumpVersion) {
+    if (!isValidSemVer(inputs.BumpVersion)) {
       throw new Error(
-        `"${InputNames.BUMP_VERSION}" must be a plain semver version string. Received: ${INPUTS.BUMP_VERSION}`,
+        `"${InputNames.BumpVersion}" must be a plain SemVer version string. Received: ${inputs.BumpVersion}`,
       );
     }
   }
@@ -138,7 +139,7 @@ export function isValidSemVer(value: unknown): value is string {
   if (typeof value !== 'string') {
     return false;
   }
-  return semver.parse(value, { loose: false })?.version === value;
+  return semverParse(value, { loose: false })?.version === value;
 }
 
 /**

@@ -1,5 +1,7 @@
 import { setFailed as setActionToFailed } from '@actions/core';
-import semver, { ReleaseType } from 'semver';
+import semverIncrement from 'semver/functions/inc';
+import semverDiff from 'semver/functions/diff';
+import type { ReleaseType } from 'semver';
 
 import {
   getPackagesMetadata,
@@ -7,33 +9,35 @@ import {
   updatePackages,
   getPackageManifest,
 } from './package-operations';
-import { WORKSPACE_ROOT, INPUTS, validateInputs } from './utils';
+import { getActionInputs, WORKSPACE_ROOT } from './utils';
 
 main().catch((error) => {
   setActionToFailed(error);
 });
 
 async function main(): Promise<void> {
-  validateInputs();
+  const actionInputs = getActionInputs();
 
   const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
+  const { version: currentVersion } = rootManifest;
 
-  let newVersion: string;
-  if (INPUTS.BUMP_TYPE) {
-    const { version: currentVersion } = rootManifest;
-
-    newVersion = semver.inc(
+  let newVersion: string, versionDiff: ReleaseType;
+  if (actionInputs.BumpType) {
+    newVersion = semverIncrement(
       currentVersion,
-      INPUTS.BUMP_TYPE as ReleaseType,
+      actionInputs.BumpType,
     ) as string;
+    versionDiff = actionInputs.BumpType;
   } else {
-    newVersion = INPUTS.BUMP_VERSION as string;
+    newVersion = actionInputs.BumpVersion as string;
+    versionDiff = semverDiff(currentVersion, newVersion) as ReleaseType;
   }
 
   const allPackages = await getPackagesMetadata();
-  const packagesToUpdate = await getPackagesToUpdate(
-    allPackages,
-    INPUTS.BUMP_TYPE,
-  );
-  await updatePackages(newVersion, allPackages, packagesToUpdate);
+  const packagesToUpdate = await getPackagesToUpdate(allPackages, versionDiff);
+  await updatePackages(allPackages, {
+    newVersion,
+    packagesToUpdate,
+    versionDiff,
+  });
 }
