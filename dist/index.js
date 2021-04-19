@@ -4048,24 +4048,28 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
  */
 var InputNames;
 (function (InputNames) {
-    InputNames["BumpType"] = "bump-type";
-    InputNames["BumpVersion"] = "bump-version";
+    InputNames["ReleaseType"] = "release-type";
+    InputNames["ReleaseVersion"] = "release-version";
 })(InputNames || (InputNames = {}));
 const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 const TWO_SPACES = '  ';
-var AcceptedSemVerDiffs;
-(function (AcceptedSemVerDiffs) {
-    AcceptedSemVerDiffs["Major"] = "major";
-    AcceptedSemVerDiffs["Minor"] = "minor";
-    AcceptedSemVerDiffs["Patch"] = "patch";
-})(AcceptedSemVerDiffs || (AcceptedSemVerDiffs = {}));
+/**
+ * SemVer release types that are accepted by this action.
+ */
+var ValidSemverReleaseTypes;
+(function (ValidSemverReleaseTypes) {
+    ValidSemverReleaseTypes["Major"] = "major";
+    ValidSemverReleaseTypes["Minor"] = "minor";
+    ValidSemverReleaseTypes["Patch"] = "patch";
+})(ValidSemverReleaseTypes || (ValidSemverReleaseTypes = {}));
 //---------------------------------------------
 // Utility Functions
 //---------------------------------------------
 function getActionInputs() {
     const inputs = {
-        BumpType: (0,core.getInput)(InputNames.BumpType) || null,
-        BumpVersion: (0,core.getInput)(InputNames.BumpVersion) || null,
+        ReleaseType: (0,core.getInput)(InputNames.ReleaseType) ||
+            null,
+        ReleaseVersion: (0,core.getInput)(InputNames.ReleaseVersion) || null,
     };
     validateActionInputs(inputs);
     return inputs;
@@ -4075,19 +4079,19 @@ function getActionInputs() {
  * Throws an error if validation fails.
  */
 function validateActionInputs(inputs) {
-    if (!inputs.BumpType && !inputs.BumpVersion) {
-        throw new Error(`Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}".`);
+    if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
+        throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`);
     }
-    if (inputs.BumpType && inputs.BumpVersion) {
-        throw new Error(`Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}", not both.`);
+    if (inputs.ReleaseType && inputs.ReleaseVersion) {
+        throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}", not both.`);
     }
-    if (inputs.BumpType && !(inputs.BumpType in AcceptedSemVerDiffs)) {
+    if (inputs.ReleaseType && !(inputs.ReleaseType in ValidSemverReleaseTypes)) {
         const tab = tabs(1, '\n');
-        throw new Error(`Unrecognized "${InputNames.BumpType}". Must be one of:${tab}${Object.keys(AcceptedSemVerDiffs).join(tab)}`);
+        throw new Error(`Unrecognized "${InputNames.ReleaseType}". Must be one of:${tab}${Object.keys(ValidSemverReleaseTypes).join(tab)}`);
     }
-    if (inputs.BumpVersion) {
-        if (!isValidSemVer(inputs.BumpVersion)) {
-            throw new Error(`"${InputNames.BumpVersion}" must be a plain SemVer version string. Received: ${inputs.BumpVersion}`);
+    if (inputs.ReleaseVersion) {
+        if (!isValidSemver(inputs.ReleaseVersion)) {
+            throw new Error(`"${InputNames.ReleaseVersion}" must be a plain SemVer version string. Received: ${inputs.ReleaseVersion}`);
         }
     }
 }
@@ -4125,7 +4129,7 @@ async function readJsonFile(path) {
  * @returns Whether the given value is a valid, unprefixed SemVer version
  * string.
  */
-function isValidSemVer(value) {
+function isValidSemver(value) {
     var _a;
     if (typeof value !== 'string') {
         return false;
@@ -4191,7 +4195,7 @@ async function getTags() {
     const rawTags = await performGitOperation('tag');
     const allTags = rawTags.split('\n');
     const latestTag = allTags[allTags.length - 1];
-    if (!latestTag || !isValidSemVer(clean_default()(latestTag))) {
+    if (!latestTag || !isValidSemver(clean_default()(latestTag))) {
         throw new Error(`Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`);
     }
     return [allTags, latestTag];
@@ -4214,6 +4218,8 @@ var PackageDependencyFields;
     PackageDependencyFields["Production"] = "dependencies";
     PackageDependencyFields["Development"] = "devDependencies";
     PackageDependencyFields["Peer"] = "peerDependencies";
+    PackageDependencyFields["Bundled"] = "bundledDependencies";
+    PackageDependencyFields["Optional"] = "optionalDependencies";
 })(PackageDependencyFields || (PackageDependencyFields = {}));
 async function getPackagesMetadata(args = {
     rootDir: WORKSPACE_ROOT,
@@ -4241,12 +4247,12 @@ async function getPackagesMetadata(args = {
  * Given the Action's bump type parameter... TODO
  * @returns An array of the names of the packages to bump.
  */
-async function getPackagesToUpdate(allPackages, versionDiff) {
-    // If it's a major version bump, everything will be updated.
-    if (isMajorSemVerDiff(versionDiff)) {
+async function getPackagesToUpdate(allPackages, synchronizeVersions) {
+    // In order to synchronize versions, we must update every package.
+    if (synchronizeVersions) {
         return new Set(Object.keys(allPackages));
     }
-    // If it's not a major version bump, only changed packages will be updated.
+    // If we're not synchronizing versions, we only update changed packages.
     return new Set(Object.keys(allPackages).filter(async (packageName) => {
         return await didPackageChange(allPackages[packageName]);
     }));
@@ -4263,20 +4269,17 @@ async function updatePackage(packageMetadata, updateContext) {
     await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.path, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateContext), null, 2));
 }
 function getUpdatedManifest(currentManifest, updateContext) {
-    const { newVersion, versionDiff } = updateContext;
-    if (isMajorSemVerDiff(versionDiff)) {
-        // If the new version is a major version bump, we bump our packages to said
-        // new major version in dependencies, devDependencies, and peerDependencies
-        // in all packages.
+    const { newVersion, synchronizeVersions } = updateContext;
+    if (synchronizeVersions) {
+        // If we're synchronizing the versions of our updated packages, we also
+        // synchronize their versions whenever they appear as a dependency.
         return {
             ...currentManifest,
             ...getUpdatedDependencyFields(currentManifest, updateContext),
             version: newVersion,
         };
     }
-    // If it's not a major version bump, we assume that no breaking changes
-    // between our packages were introduced, and we leave all dependencies as they
-    // are.
+    // If we're not synchronizing versions, we leave all dependencies as they are.
     return { ...currentManifest, version: newVersion };
 }
 function getUpdatedDependencyFields(manifest, updateContext) {
@@ -4314,13 +4317,13 @@ function validatePackageManifest(manifest, manifestDirPath, requiredFields = ['n
     if (requiredFields.includes('name') && !isTruthyString(manifest.name)) {
         throw new Error(`Manifest in "${legiblePath}" does not have a valid "name" field.`);
     }
-    if (requiredFields.includes('version') && !isValidSemVer(manifest.version)) {
+    if (requiredFields.includes('version') && !isValidSemver(manifest.version)) {
         throw new Error(`${`"${manifest.name}" manifest "version"` ||
             `"version" of manifest in "${legiblePath}"`} is not a valid SemVer version: ${manifest.version}`);
     }
 }
-function isMajorSemVerDiff(diff) {
-    return diff.includes(AcceptedSemVerDiffs.Major);
+function isMajorSemverDiff(diff) {
+    return diff.includes(ValidSemverReleaseTypes.Major);
 }
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/index.js
@@ -4337,20 +4340,25 @@ async function main() {
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     const { version: currentVersion } = rootManifest;
     let newVersion, versionDiff;
-    if (actionInputs.BumpType) {
-        newVersion = inc_default()(currentVersion, actionInputs.BumpType);
-        versionDiff = actionInputs.BumpType;
+    if (actionInputs.ReleaseType) {
+        newVersion = inc_default()(currentVersion, actionInputs.ReleaseType);
+        versionDiff = actionInputs.ReleaseType;
     }
     else {
-        newVersion = actionInputs.BumpVersion;
+        newVersion = actionInputs.ReleaseVersion;
         versionDiff = diff_default()(currentVersion, newVersion);
     }
+    // If the version bump is major, we will synchronize the versions of all
+    // monorepo packages, meaning the "version" field of their manifests and
+    // their version range whenever they appear as a dependency.
+    const synchronizeVersions = isMajorSemverDiff(versionDiff);
     const allPackages = await getPackagesMetadata();
-    const packagesToUpdate = await getPackagesToUpdate(allPackages, versionDiff);
+    const packagesToUpdate = await getPackagesToUpdate(allPackages, synchronizeVersions);
     await updatePackages(allPackages, {
         newVersion,
         packagesToUpdate,
         versionDiff,
+        synchronizeVersions,
     });
 }
 //# sourceMappingURL=index.js.map

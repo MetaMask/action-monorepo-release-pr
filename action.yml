@@ -1,16 +1,12 @@
 name: 'Create Monorepo Release PR'
 description: 'Bump monorepo package versions and create a release PR.'
 inputs:
-  bump-type:
-    description: 'A semver version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "bump-version".'
+  release-type:
+    description: 'A SemVer version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "release-version".'
     required: false
-  bump-version:
-    description: 'A specific version to bump to. Mutually exclusive with "bump-type".'
+  release-version:
+    description: 'A specific version to bump to. Mutually exclusive with "release-type".'
     required: false
-  # ignore-semver-checks:
-  #   default: false
-  #   description: 'Whether to ignore semver validation checks. Only used with "bump-version".'
-  #   required: false
   # debug:
   #   default: false
   #   description: 'Whether the action is being tested.'

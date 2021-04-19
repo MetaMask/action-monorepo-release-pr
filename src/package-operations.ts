@@ -1,13 +1,13 @@
 import { promises as fs } from 'fs';
 import pathUtils from 'path';
-import type { ReleaseType } from 'semver';
+import type { ReleaseType as SemverReleaseType } from 'semver';
 
 import { didPackageChange } from './git-operations';
 import {
   isTruthyString,
-  isValidSemVer,
+  isValidSemver,
   readJsonFile,
-  AcceptedSemVerDiffs,
+  ValidSemverReleaseTypes,
   WORKSPACE_ROOT,
 } from './utils';
 
@@ -17,14 +17,14 @@ enum PackageDependencyFields {
   Production = 'dependencies',
   Development = 'devDependencies',
   Peer = 'peerDependencies',
+  Bundled = 'bundledDependencies',
+  Optional = 'optionalDependencies',
 }
 
-export interface PackageManifest {
+export interface PackageManifest
+  extends Record<PackageDependencyFields, Record<string, string>> {
   readonly name: string;
   readonly version: string;
-  readonly [PackageDependencyFields.Production]: Record<string, string>;
-  readonly [PackageDependencyFields.Development]: Record<string, string>;
-  readonly [PackageDependencyFields.Peer]: Record<string, string>;
 }
 
 export interface PackageMetadata {
@@ -35,9 +35,10 @@ export interface PackageMetadata {
 }
 
 interface UpdateContext {
-  readonly versionDiff: ReleaseType;
+  readonly versionDiff: SemverReleaseType;
   readonly newVersion: string;
   readonly packagesToUpdate: Set<string>;
+  readonly synchronizeVersions: boolean;
 }
 
 interface GetPackageMetadataArgs {
@@ -80,14 +81,14 @@ export async function getPackagesMetadata(
  */
 export async function getPackagesToUpdate(
   allPackages: Record<string, PackageMetadata>,
-  versionDiff: ReleaseType,
+  synchronizeVersions: boolean,
 ): Promise<Set<string>> {
-  // If it's a major version bump, everything will be updated.
-  if (isMajorSemVerDiff(versionDiff)) {
+  // In order to synchronize versions, we must update every package.
+  if (synchronizeVersions) {
     return new Set(Object.keys(allPackages));
   }
 
-  // If it's not a major version bump, only changed packages will be updated.
+  // If we're not synchronizing versions, we only update changed packages.
   return new Set(
     Object.keys(allPackages).filter(async (packageName) => {
       return await didPackageChange(allPackages[packageName]);
@@ -129,11 +130,10 @@ function getUpdatedManifest(
   currentManifest: PackageManifest,
   updateContext: UpdateContext,
 ) {
-  const { newVersion, versionDiff } = updateContext;
-  if (isMajorSemVerDiff(versionDiff)) {
-    // If the new version is a major version bump, we bump our packages to said
-    // new major version in dependencies, devDependencies, and peerDependencies
-    // in all packages.
+  const { newVersion, synchronizeVersions } = updateContext;
+  if (synchronizeVersions) {
+    // If we're synchronizing the versions of our updated packages, we also
+    // synchronize their versions whenever they appear as a dependency.
     return {
       ...currentManifest,
       ...getUpdatedDependencyFields(currentManifest, updateContext),
@@ -141,9 +141,7 @@ function getUpdatedManifest(
     };
   }
 
-  // If it's not a major version bump, we assume that no breaking changes
-  // between our packages were introduced, and we leave all dependencies as they
-  // are.
+  // If we're not synchronizing versions, we leave all dependencies as they are.
   return { ...currentManifest, version: newVersion };
 }
 
@@ -215,7 +213,7 @@ function validatePackageManifest(
     );
   }
 
-  if (requiredFields.includes('version') && !isValidSemVer(manifest.version)) {
+  if (requiredFields.includes('version') && !isValidSemver(manifest.version)) {
     throw new Error(
       `${
         `"${manifest.name}" manifest "version"` ||
@@ -225,6 +223,6 @@ function validatePackageManifest(
   }
 }
 
-function isMajorSemVerDiff(diff: ReleaseType): boolean {
-  return diff.includes(AcceptedSemVerDiffs.Major);
+export function isMajorSemverDiff(diff: SemverReleaseType): boolean {
+  return diff.includes(ValidSemverReleaseTypes.Major);
 }

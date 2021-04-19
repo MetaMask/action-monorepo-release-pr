@@ -2,7 +2,7 @@ import pathUtils from 'path';
 import semverClean from 'semver/functions/clean';
 import execa from 'execa';
 import { PackageMetadata } from './package-operations';
-import { isValidSemVer, WORKSPACE_ROOT } from './utils';
+import { isValidSemver, WORKSPACE_ROOT } from './utils';
 
 const HEAD = 'HEAD';
 
@@ -77,7 +77,7 @@ async function getTags(): Promise<Readonly<[string[], string]>> {
   const rawTags = await performGitOperation('tag');
   const allTags = rawTags.split('\n');
   const latestTag = allTags[allTags.length - 1];
-  if (!latestTag || !isValidSemVer(semverClean(latestTag))) {
+  if (!latestTag || !isValidSemver(semverClean(latestTag))) {
     throw new Error(
       `Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`,
     );

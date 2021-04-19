@@ -23,23 +23,26 @@ declare global {
  * The names of the inputs to the Action, per action.yml.
  */
 enum InputNames {
-  BumpType = 'bump-type',
-  BumpVersion = 'bump-version',
+  ReleaseType = 'release-type',
+  ReleaseVersion = 'release-version',
 }
 
 export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 
 const TWO_SPACES = '  ';
 
-export enum AcceptedSemVerDiffs {
+/**
+ * SemVer release types that are accepted by this action.
+ */
+export enum ValidSemverReleaseTypes {
   Major = 'major',
   Minor = 'minor',
   Patch = 'patch',
 }
 
 export interface ActionInputs {
-  readonly BumpType: AcceptedSemVerDiffs | null;
-  readonly BumpVersion: string | null;
+  readonly ReleaseType: ValidSemverReleaseTypes | null;
+  readonly ReleaseVersion: string | null;
 }
 
 //---------------------------------------------
@@ -48,9 +51,10 @@ export interface ActionInputs {
 
 export function getActionInputs(): ActionInputs {
   const inputs: ActionInputs = {
-    BumpType:
-      (getActionInput(InputNames.BumpType) as AcceptedSemVerDiffs) || null,
-    BumpVersion: getActionInput(InputNames.BumpVersion) || null,
+    ReleaseType:
+      (getActionInput(InputNames.ReleaseType) as ValidSemverReleaseTypes) ||
+      null,
+    ReleaseVersion: getActionInput(InputNames.ReleaseVersion) || null,
   };
   validateActionInputs(inputs);
   return inputs;
@@ -61,31 +65,33 @@ export function getActionInputs(): ActionInputs {
  * Throws an error if validation fails.
  */
 export function validateActionInputs(inputs: ActionInputs): void {
-  if (!inputs.BumpType && !inputs.BumpVersion) {
+  if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
     throw new Error(
-      `Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}".`,
+      `Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`,
     );
   }
 
-  if (inputs.BumpType && inputs.BumpVersion) {
+  if (inputs.ReleaseType && inputs.ReleaseVersion) {
     throw new Error(
-      `Must specify either "${InputNames.BumpType}" or "${InputNames.BumpVersion}", not both.`,
+      `Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}", not both.`,
     );
   }
 
-  if (inputs.BumpType && !(inputs.BumpType in AcceptedSemVerDiffs)) {
+  if (inputs.ReleaseType && !(inputs.ReleaseType in ValidSemverReleaseTypes)) {
     const tab = tabs(1, '\n');
     throw new Error(
       `Unrecognized "${
-        InputNames.BumpType
-      }". Must be one of:${tab}${Object.keys(AcceptedSemVerDiffs).join(tab)}`,
+        InputNames.ReleaseType
+      }". Must be one of:${tab}${Object.keys(ValidSemverReleaseTypes).join(
+        tab,
+      )}`,
     );
   }
 
-  if (inputs.BumpVersion) {
-    if (!isValidSemVer(inputs.BumpVersion)) {
+  if (inputs.ReleaseVersion) {
+    if (!isValidSemver(inputs.ReleaseVersion)) {
       throw new Error(
-        `"${InputNames.BumpVersion}" must be a plain SemVer version string. Received: ${inputs.BumpVersion}`,
+        `"${InputNames.ReleaseVersion}" must be a plain SemVer version string. Received: ${inputs.ReleaseVersion}`,
       );
     }
   }
@@ -135,7 +141,7 @@ export async function readJsonFile(
  * @returns Whether the given value is a valid, unprefixed SemVer version
  * string.
  */
-export function isValidSemVer(value: unknown): value is string {
+export function isValidSemver(value: unknown): value is string {
   if (typeof value !== 'string') {
     return false;
   }
