@@ -53,7 +53,7 @@ export interface ActionInputs {
  * Validates and returns the inputs to the Action.
  * We perform additional validation because the GitHub Actions configuration
  * syntax is insufficient to express the requirements we have of our inputs.
- * 
+ *
  * @returns The parsed and validated inputs to the Action.
  */
 export function getActionInputs(): ActionInputs {

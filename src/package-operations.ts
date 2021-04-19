@@ -22,7 +22,7 @@ enum PackageDependencyFields {
 }
 
 export interface PackageManifest
-  extends Record<PackageDependencyFields, Record<string, string>> {
+  extends Partial<Record<PackageDependencyFields, Record<string, string>>> {
   readonly name: string;
   readonly version: string;
 }
@@ -31,7 +31,7 @@ export interface PackageMetadata {
   readonly dirName: string;
   readonly manifest: Readonly<PackageManifest>;
   readonly name: string;
-  readonly path: string;
+  readonly dirPath: string;
 }
 
 interface UpdateContext {
@@ -67,7 +67,7 @@ export async function getPackagesMetadata(
           dirName: packageDir,
           manifest,
           name: manifest.name,
-          path: packagePath,
+          dirPath: packagePath,
         };
       }
     }),
@@ -117,7 +117,7 @@ async function updatePackage(
   updateContext: UpdateContext,
 ): Promise<void> {
   await fs.writeFile(
-    pathUtils.join(packageMetadata.path, PACKAGE_JSON),
+    pathUtils.join(packageMetadata.dirPath, PACKAGE_JSON),
     JSON.stringify(
       getUpdatedManifest(packageMetadata.manifest, updateContext),
       null,
@@ -153,7 +153,7 @@ function getUpdatedDependencyFields(
     (newDepsFields: Record<string, unknown>, fieldName) => {
       if (fieldName in manifest) {
         newDepsFields[fieldName] = getUpdatedDependencyField(
-          manifest[fieldName],
+          manifest[fieldName] as Record<string, string>,
           updateContext,
         );
       }

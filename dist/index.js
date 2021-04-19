@@ -4056,15 +4056,22 @@ const TWO_SPACES = '  ';
 /**
  * SemVer release types that are accepted by this action.
  */
-var ValidSemverReleaseTypes;
-(function (ValidSemverReleaseTypes) {
-    ValidSemverReleaseTypes["Major"] = "major";
-    ValidSemverReleaseTypes["Minor"] = "minor";
-    ValidSemverReleaseTypes["Patch"] = "patch";
-})(ValidSemverReleaseTypes || (ValidSemverReleaseTypes = {}));
+var AcceptedSemverReleaseTypes;
+(function (AcceptedSemverReleaseTypes) {
+    AcceptedSemverReleaseTypes["Major"] = "major";
+    AcceptedSemverReleaseTypes["Minor"] = "minor";
+    AcceptedSemverReleaseTypes["Patch"] = "patch";
+})(AcceptedSemverReleaseTypes || (AcceptedSemverReleaseTypes = {}));
 //---------------------------------------------
 // Utility Functions
 //---------------------------------------------
+/**
+ * Validates and returns the inputs to the Action.
+ * We perform additional validation because the GitHub Actions configuration
+ * syntax is insufficient to express the requirements we have of our inputs.
+ *
+ * @returns The parsed and validated inputs to the Action.
+ */
 function getActionInputs() {
     const inputs = {
         ReleaseType: (0,core.getInput)(InputNames.ReleaseType) ||
@@ -4085,22 +4092,16 @@ function validateActionInputs(inputs) {
     if (inputs.ReleaseType && inputs.ReleaseVersion) {
         throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}", not both.`);
     }
-    if (inputs.ReleaseType && !(inputs.ReleaseType in ValidSemverReleaseTypes)) {
+    if (inputs.ReleaseType &&
+        !Object.values(AcceptedSemverReleaseTypes).includes(inputs.ReleaseType)) {
         const tab = tabs(1, '\n');
-        throw new Error(`Unrecognized "${InputNames.ReleaseType}". Must be one of:${tab}${Object.keys(ValidSemverReleaseTypes).join(tab)}`);
+        throw new Error(`Unrecognized "${InputNames.ReleaseType}". Must be one of:${tab}${Object.keys(AcceptedSemverReleaseTypes).join(tab)}`);
     }
     if (inputs.ReleaseVersion) {
         if (!isValidSemver(inputs.ReleaseVersion)) {
             throw new Error(`"${InputNames.ReleaseVersion}" must be a plain SemVer version string. Received: ${inputs.ReleaseVersion}`);
         }
     }
-}
-/**
- * @param value - The value to test.
- * @returns Whether the value is a non-empty string.
- */
-function isTruthyString(value) {
-    return Boolean(value) && typeof value === 'string';
 }
 /**
  * Reads the assumed JSON file at the given path, attempts to parse it, and
@@ -4137,20 +4138,27 @@ function isValidSemver(value) {
     return ((_a = parse_default()(value, { loose: false })) === null || _a === void 0 ? void 0 : _a.version) === value;
 }
 /**
+ * @param value - The value to test.
+ * @returns Whether the value is a non-empty string.
+ */
+function isTruthyString(value) {
+    return Boolean(value) && typeof value === 'string';
+}
+/**
  * @param numTabs - The number of tabs to return. A tab consists of two spaces.
  * @param prefix - The prefix to prepend to the returned string, if any.
  * @returns A string consisting of the prefix, if any, and the requested number
  * of tabs.
  */
 function tabs(numTabs, prefix) {
-    if (!Number.isInteger(numTabs) || numTabs < 0) {
+    if (!Number.isInteger(numTabs) || numTabs < 1) {
         throw new Error('Expected positive integer.');
     }
-    const tab = prefix ? `{${prefix}${TWO_SPACES}}` : TWO_SPACES;
+    const firstTab = prefix ? `${prefix}${TWO_SPACES}` : TWO_SPACES;
     if (numTabs === 1) {
-        return tab;
+        return firstTab;
     }
-    return tab + new Array(numTabs).join(tab);
+    return firstTab + new Array(numTabs).join(TWO_SPACES);
 }
 //# sourceMappingURL=utils.js.map
 ;// CONCATENATED MODULE: ./lib/git-operations.js
@@ -4164,10 +4172,16 @@ let TAGS;
 const DIFFS = new Map();
 async function initializeGit() {
     if (!INITIALIZED_GIT) {
-        INITIALIZED_GIT = true;
         [TAGS] = await getTags();
+        // eslint-disable-next-line require-atomic-updates
+        INITIALIZED_GIT = true;
     }
 }
+/**
+ * ATTN: Not safely parallelizable.
+ *
+ * @param packageData - The metadata of the package.
+ */
 async function didPackageChange(packageData, packagesDir = 'packages') {
     await initializeGit();
     const { manifest: { name: packageName, version: currentVersion }, } = packageData;
@@ -4237,7 +4251,7 @@ async function getPackagesMetadata(args = {
                 dirName: packageDir,
                 manifest,
                 name: manifest.name,
-                path: packagePath,
+                dirPath: packagePath,
             };
         }
     }));
@@ -4266,7 +4280,7 @@ async function updatePackages(allPackages, updateContext) {
     await Promise.all(Array.from(packagesToUpdate.keys()).map(async (packageName) => updatePackage(allPackages[packageName], updateContext)));
 }
 async function updatePackage(packageMetadata, updateContext) {
-    await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.path, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateContext), null, 2));
+    await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.dirPath, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateContext), null, 2));
 }
 function getUpdatedManifest(currentManifest, updateContext) {
     const { newVersion, synchronizeVersions } = updateContext;
@@ -4323,7 +4337,7 @@ function validatePackageManifest(manifest, manifestDirPath, requiredFields = ['n
     }
 }
 function isMajorSemverDiff(diff) {
-    return diff.includes(ValidSemverReleaseTypes.Major);
+    return diff.includes(AcceptedSemverReleaseTypes.Major);
 }
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/index.js
