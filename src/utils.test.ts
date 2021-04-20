@@ -3,6 +3,7 @@ import {
   getActionInputs,
   isTruthyString,
   isValidSemver,
+  isMajorSemverDiff,
   readJsonFile,
   tabs,
   AcceptedSemverReleaseTypes,
@@ -152,6 +153,19 @@ describe('isValidSemver', () => {
 
   it('returns false for v-prefixed SemVer strings', () => {
     expect(isValidSemver('v1.0.0')).toStrictEqual(false);
+  });
+});
+
+describe('isMajorSemverDiff', () => {
+  it('returns true for "major" and "premajor" diffs', () => {
+    expect(isMajorSemverDiff('major')).toStrictEqual(true);
+    expect(isMajorSemverDiff('premajor')).toStrictEqual(true);
+  });
+
+  it('returns false for non-major diffs', () => {
+    expect(isMajorSemverDiff('patch')).toStrictEqual(false);
+    expect(isMajorSemverDiff('minor')).toStrictEqual(false);
+    expect(isMajorSemverDiff('prerelease')).toStrictEqual(false);
   });
 });
 

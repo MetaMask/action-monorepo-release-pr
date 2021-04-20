@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import { getInput as getActionInput } from '@actions/core';
 import semverParse from 'semver/functions/parse';
+import type { ReleaseType as SemverReleaseType } from 'semver';
 
 //---------------------------------------------
 // Constants & Types
@@ -148,6 +149,17 @@ export function isValidSemver(value: unknown): value is string {
     return false;
   }
   return semverParse(value, { loose: false })?.version === value;
+}
+
+/**
+ * Checks whether the given SemVer diff is a major diff, i.e. "major" or
+ * "premajor".
+ *
+ * @param diff - The SemVer diff to check.
+ * @returns Whether the given SemVer diff is a major diff.
+ */
+export function isMajorSemverDiff(diff: SemverReleaseType): boolean {
+  return diff.includes(AcceptedSemverReleaseTypes.Major);
 }
 
 /**

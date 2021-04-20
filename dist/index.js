@@ -4138,6 +4138,16 @@ function isValidSemver(value) {
     return ((_a = parse_default()(value, { loose: false })) === null || _a === void 0 ? void 0 : _a.version) === value;
 }
 /**
+ * Checks whether the given SemVer diff is a major diff, i.e. "major" or
+ * "premajor".
+ *
+ * @param diff - The SemVer diff to check.
+ * @returns Whether the given SemVer diff is a major diff.
+ */
+function isMajorSemverDiff(diff) {
+    return diff.includes(AcceptedSemverReleaseTypes.Major);
+}
+/**
  * @param value - The value to test.
  * @returns Whether the value is a non-empty string.
  */
@@ -4170,6 +4180,10 @@ const HEAD = 'HEAD';
 let INITIALIZED_GIT = false;
 let TAGS;
 const DIFFS = new Map();
+/**
+ * Executes "git tag" and stores the result.
+ * Idempotent, but only if executed serially.
+ */
 async function initializeGit() {
     if (!INITIALIZED_GIT) {
         [TAGS] = await getTags();
@@ -4178,9 +4192,18 @@ async function initializeGit() {
     }
 }
 /**
- * ATTN: Not safely parallelizable.
+ * ATTN: Only execute serially. Not safely parallelizable.
  *
- * @param packageData - The metadata of the package.
+ * Using git, checks whether the package changed since it was last released.
+ *
+ * Assumes that:
+ * - The "version" field of the package's manifest corresponds to its latest
+ * released version.
+ * - The release commit of the package's latest version is tagged with
+ * "v<VERSION>", where <VERSION> is equal to the manifest's "version" field.
+ *
+ * @param packageData - The metadata of the package to diff.
+ * @returns Whether the package changed since its last release.
  */
 async function didPackageChange(packageData, packagesDir = 'packages') {
     await initializeGit();
@@ -4191,20 +4214,43 @@ async function didPackageChange(packageData, packagesDir = 'packages') {
     }
     return hasDiff(packageData, tagOfCurrentVersion, packagesDir);
 }
+/**
+ * Retrieves the diff for the given tag from the cache or performs the git diff
+ * operation, caching the result and returning it.
+ *
+ * @param packageData - The metadata of the package to diff.
+ * @param tag - The tag corresponding to the package's latest release.
+ * @param packagesDir - The monorepo's packages directory.
+ * @returns Whether the package changed since its last release.
+ */
 async function hasDiff(packageData, tag, packagesDir) {
     const { dirName: packageDirName } = packageData;
-    const diff = await performDiff(tag, packagesDir);
+    let diff;
+    if (DIFFS.has(tag)) {
+        diff = DIFFS.get(tag);
+    }
+    else {
+        diff = await performDiff(tag, packagesDir);
+        DIFFS.set(tag, diff);
+    }
     const packagePathPrefix = external_path_default().join(packagesDir, packageDirName);
     return diff.some((diffPath) => diffPath.startsWith(packagePathPrefix));
 }
+/**
+ * Wrapper function for executing "git diff".
+ *
+ * @param tag - The tag to compare against HEAD.
+ * @param packagesDir - The monorepo's packages directory. Used for narrowing
+ * git diff results.
+ */
 async function performDiff(tag, packagesDir) {
-    if (DIFFS.has(tag)) {
-        return DIFFS.get(tag);
-    }
-    const diff = (await performGitOperation('diff', tag, HEAD, '--name-only', '--', packagesDir)).split('\n');
-    DIFFS.set(tag, diff);
-    return diff;
+    return (await performGitOperation('diff', tag, HEAD, '--name-only', '--', packagesDir)).split('\n');
 }
+/**
+ * Utility function for executing "git tag" and parsing the result.
+ *
+ * @returns A tuple of all tags as a string array and the latest tag.
+ */
 async function getTags() {
     const rawTags = await performGitOperation('tag');
     const allTags = rawTags.split('\n');
@@ -4214,9 +4260,22 @@ async function getTags() {
     }
     return [allTags, latestTag];
 }
+/**
+ * Utility function for performing git operations via execa.
+ *
+ * @param command - The git command to execute.
+ * @param args - The positional arguments to the git command.
+ * @returns The result of the git command.
+ */
 async function performGitOperation(command, ...args) {
     return (await execa_default()('git', [command, ...args], { cwd: WORKSPACE_ROOT })).stdout.trim();
 }
+/**
+ * Takes a SemVer version string and prefixes it with "v".
+ *
+ * @param version - The SemVer version string to prefix.
+ * @returns The "v"-prefixed SemVer version string.
+ */
 function versionToTag(version) {
     return `v${version}`;
 }
@@ -4235,11 +4294,16 @@ var PackageDependencyFields;
     PackageDependencyFields["Bundled"] = "bundledDependencies";
     PackageDependencyFields["Optional"] = "optionalDependencies";
 })(PackageDependencyFields || (PackageDependencyFields = {}));
-async function getPackagesMetadata(args = {
-    rootDir: WORKSPACE_ROOT,
-    packagesDir: 'packages',
-}) {
-    const { rootDir, packagesDir } = args;
+/**
+ * Reads the contents of the monorepo's packages directory, and collects
+ * metadata for each package therein. Assumes that all folders in the packages
+ * directory are the root folders of distinct npm packages.
+ *
+ * @param rootDir - The monorepo root directory.
+ * @param packagesDir - The packages directory of the monorepo.
+ * @returns The metadata for all packages in the monorepo.
+ */
+async function getMetadataForAllPackages(rootDir = WORKSPACE_ROOT, packagesDir = 'packages') {
     const packagesPath = external_path_default().join(rootDir, packagesDir);
     const packagesDirContents = await external_fs_.promises.readdir(packagesPath);
     const result = {};
@@ -4258,8 +4322,10 @@ async function getPackagesMetadata(args = {
     return result;
 }
 /**
- * Given the Action's bump type parameter... TODO
- * @returns An array of the names of the packages to bump.
+ * @param allPackages - The metadata of all packages in the monorepo.
+ * @param synchronizeVersions - Whether to synchronize the versions of all
+ * packages.
+ * @returns The names of the packages to update.
  */
 async function getPackagesToUpdate(allPackages, synchronizeVersions) {
     // In order to synchronize versions, we must update every package.
@@ -4267,58 +4333,120 @@ async function getPackagesToUpdate(allPackages, synchronizeVersions) {
         return new Set(Object.keys(allPackages));
     }
     // If we're not synchronizing versions, we only update changed packages.
-    return new Set(Object.keys(allPackages).filter(async (packageName) => {
-        return await didPackageChange(allPackages[packageName]);
-    }));
+    const shouldBeUpdated = new Set();
+    // We use a for-loop here instead of Promise.all because didPackageChange
+    // must be called serially.
+    for (const packageName of Object.keys(allPackages)) {
+        if (await didPackageChange(allPackages[packageName])) {
+            shouldBeUpdated.add(packageName);
+        }
+    }
+    return shouldBeUpdated;
 }
 /**
- * "Bumps" the specified packages. "Bumping" currently just means overwriting
- * the version.
+ * Updates the manifests of all packages in the monorepo per the update
+ * specification. Writes the new manifests to disk. The following changes are
+ * made to the new manifests:
+ *
+ * - The "version" field is replaced with the new version
+ * - If package versions are being synchronized, updates their version ranges
+ * wherever they appear as dependencies
+ *
+ * @param allPackages - The metadata of all monorepo packages
+ * @param updateSpecification - The update specification.
  */
-async function updatePackages(allPackages, updateContext) {
-    const { packagesToUpdate } = updateContext;
-    await Promise.all(Array.from(packagesToUpdate.keys()).map(async (packageName) => updatePackage(allPackages[packageName], updateContext)));
+async function updatePackages(allPackages, updateSpecification) {
+    const { packagesToUpdate } = updateSpecification;
+    await Promise.all(Array.from(packagesToUpdate.keys()).map(async (packageName) => updatePackage(allPackages[packageName], updateSpecification)));
 }
-async function updatePackage(packageMetadata, updateContext) {
-    await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.dirPath, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateContext), null, 2));
+/**
+ * Updates the given manifest per the update specification and writes it to
+ * disk. The following changes are made to the new manifest:
+ *
+ * - The "version" field is replaced with the new version
+ * - If package versions are being synchronized, updates their version ranges
+ * wherever they appear as dependencies
+ *
+ * @param packageMetadata - The metadata of the package to update.
+ * @param updateSpecification - The update specification, which determines how
+ * the update is performed.
+ */
+async function updatePackage(packageMetadata, updateSpecification) {
+    await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.dirPath, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateSpecification), null, 2));
 }
-function getUpdatedManifest(currentManifest, updateContext) {
-    const { newVersion, synchronizeVersions } = updateContext;
+/**
+ * Updates the given manifest per the update specification as follows:
+ *
+ * - Updates the manifest's "version" field to the new version
+ * - If monorepo package versions are being synchronized, updates their version
+ * ranges wherever they appear as dependencies
+ *
+ * @param currentManifest - The package's current manifest, as read from disk.
+ * @param updateSpecification - The update specification, which determines how
+ * the update is performed.
+ * @returns The updated manifest.
+ */
+function getUpdatedManifest(currentManifest, updateSpecification) {
+    const { newVersion, synchronizeVersions } = updateSpecification;
     if (synchronizeVersions) {
         // If we're synchronizing the versions of our updated packages, we also
         // synchronize their versions whenever they appear as a dependency.
         return {
             ...currentManifest,
-            ...getUpdatedDependencyFields(currentManifest, updateContext),
+            ...getUpdatedDependencyFields(currentManifest, updateSpecification),
             version: newVersion,
         };
     }
     // If we're not synchronizing versions, we leave all dependencies as they are.
     return { ...currentManifest, version: newVersion };
 }
-function getUpdatedDependencyFields(manifest, updateContext) {
+/**
+ * Gets the updated dependency fields of the given manifest per the given
+ * update specification.
+ *
+ * @param currentManifest - The package's current manifest, as read from disk.
+ * @param updateSpecification - The update specification, which determines how
+ * the update is performed.
+ * @returns The updated dependency fields of the manifest.
+ */
+function getUpdatedDependencyFields(manifest, updateSpecification) {
+    const { newVersion, packagesToUpdate } = updateSpecification;
     return Object.values(PackageDependencyFields).reduce((newDepsFields, fieldName) => {
         if (fieldName in manifest) {
-            newDepsFields[fieldName] = getUpdatedDependencyField(manifest[fieldName], updateContext);
+            newDepsFields[fieldName] = getUpdatedDependencyField(manifest[fieldName], packagesToUpdate, newVersion);
         }
         return newDepsFields;
     }, {});
 }
-function getUpdatedDependencyField(dependencyField, updateContext) {
-    const { newVersion, packagesToUpdate } = updateContext;
+/**
+ * Updates the version range of every package in the list that's present in the
+ * dependency object to "^<VERSION>", where <VERSION> is the specified new
+ * version.
+ *
+ * @param dependencyObject - The package.json dependency object to update.
+ * @param packagesToUpdate - The packages to update the version of.
+ * @param newVersion - The new version of the given packages.
+ * @returns The updated dependency object.
+ */
+function getUpdatedDependencyField(dependencyObject, packagesToUpdate, newVersion) {
     const newVersionRange = `^${newVersion}`;
-    return Object.keys(dependencyField).reduce((newDeps, packageName) => {
+    return Object.keys(dependencyObject).reduce((newDeps, packageName) => {
         newDeps[packageName] = packagesToUpdate.has(packageName)
             ? newVersionRange
-            : dependencyField[packageName];
+            : dependencyObject[packageName];
         return newDeps;
     }, {});
 }
 /**
- * Read, parse, and return the object corresponding to the package.json file
- * in the given directory.
+ * Read, parse, validate, and return the object corresponding to the
+ * package.json file in the given directory.
+ *
+ * An error is thrown if validation fails.
+ *
  * @param containingDirPath - The path to the directory containing the
  * package.json file.
+ * @param requiredFields - The manifest fields that will be required during
+ * validation.
  * @returns The object corresponding to the parsed package.json file.
  */
 async function getPackageManifest(containingDirPath, requiredFields) {
@@ -4326,7 +4454,21 @@ async function getPackageManifest(containingDirPath, requiredFields) {
     validatePackageManifest(manifest, containingDirPath, requiredFields);
     return manifest;
 }
+/**
+ * Validates a manifest by ensuring that the given required fields are present
+ * and properly formatted.
+ *
+ * @param manifest - The manifest to validate.
+ * @param manifestDirPath - The path to the directory containing the
+ * package.json file.
+ * @param requiredFields - The manifest fields that will be required during
+ * validation.
+ */
 function validatePackageManifest(manifest, manifestDirPath, requiredFields = ['name', 'version']) {
+    if (requiredFields.length === 0) {
+        return;
+    }
+    // Just for logging purposes
     const legiblePath = manifestDirPath.split('/').splice(-2).join('/');
     if (requiredFields.includes('name') && !isTruthyString(manifest.name)) {
         throw new Error(`Manifest in "${legiblePath}" does not have a valid "name" field.`);
@@ -4335,9 +4477,6 @@ function validatePackageManifest(manifest, manifestDirPath, requiredFields = ['n
         throw new Error(`${`"${manifest.name}" manifest "version"` ||
             `"version" of manifest in "${legiblePath}"`} is not a valid SemVer version: ${manifest.version}`);
     }
-}
-function isMajorSemverDiff(diff) {
-    return diff.includes(AcceptedSemverReleaseTypes.Major);
 }
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/index.js
@@ -4353,6 +4492,7 @@ async function main() {
     const actionInputs = getActionInputs();
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     const { version: currentVersion } = rootManifest;
+    // Compute the new version and version diff from the inputs and root manifest
     let newVersion, versionDiff;
     if (actionInputs.ReleaseType) {
         newVersion = inc_default()(currentVersion, actionInputs.ReleaseType);
@@ -4364,16 +4504,19 @@ async function main() {
     }
     // If the version bump is major, we will synchronize the versions of all
     // monorepo packages, meaning the "version" field of their manifests and
-    // their version range whenever they appear as a dependency.
+    // their version range specified wherever they appear as a dependency.
     const synchronizeVersions = isMajorSemverDiff(versionDiff);
-    const allPackages = await getPackagesMetadata();
+    // Collect required information to perform updates
+    const allPackages = await getMetadataForAllPackages();
     const packagesToUpdate = await getPackagesToUpdate(allPackages, synchronizeVersions);
-    await updatePackages(allPackages, {
+    const updateSpecification = {
         newVersion,
         packagesToUpdate,
-        versionDiff,
         synchronizeVersions,
-    });
+    };
+    // Finally, bump the version of all packages and the root manifest
+    await updatePackages(allPackages, updateSpecification);
+    await updatePackage({ dirPath: WORKSPACE_ROOT, manifest: rootManifest }, updateSpecification);
 }
 //# sourceMappingURL=index.js.map
 })();

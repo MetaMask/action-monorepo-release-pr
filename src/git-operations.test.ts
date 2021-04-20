@@ -2,7 +2,7 @@ import execa from 'execa';
 import { didPackageChange } from './git-operations';
 
 // We don't actually use it, so it doesn't matter what it is.
-process.env.GITHUB_WORKSPACE = 'foo';
+process.env.GITHUB_WORKSPACE = 'root';
 
 jest.mock('execa');
 

@@ -4,13 +4,13 @@ import semverDiff from 'semver/functions/diff';
 import type { ReleaseType as SemverReleaseType } from 'semver';
 
 import {
-  getPackagesMetadata,
+  getMetadataForAllPackages,
   getPackagesToUpdate,
   updatePackages,
   getPackageManifest,
-  isMajorSemverDiff,
+  updatePackage,
 } from './package-operations';
-import { getActionInputs, WORKSPACE_ROOT } from './utils';
+import { getActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
 main().catch((error) => {
   setActionToFailed(error);
@@ -22,6 +22,7 @@ async function main(): Promise<void> {
   const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
   const { version: currentVersion } = rootManifest;
 
+  // Compute the new version and version diff from the inputs and root manifest
   let newVersion: string, versionDiff: SemverReleaseType;
   if (actionInputs.ReleaseType) {
     newVersion = semverIncrement(
@@ -36,18 +37,25 @@ async function main(): Promise<void> {
 
   // If the version bump is major, we will synchronize the versions of all
   // monorepo packages, meaning the "version" field of their manifests and
-  // their version range whenever they appear as a dependency.
+  // their version range specified wherever they appear as a dependency.
   const synchronizeVersions = isMajorSemverDiff(versionDiff);
 
-  const allPackages = await getPackagesMetadata();
+  // Collect required information to perform updates
+  const allPackages = await getMetadataForAllPackages();
   const packagesToUpdate = await getPackagesToUpdate(
     allPackages,
     synchronizeVersions,
   );
-  await updatePackages(allPackages, {
+  const updateSpecification = {
     newVersion,
     packagesToUpdate,
-    versionDiff,
     synchronizeVersions,
-  });
+  };
+
+  // Finally, bump the version of all packages and the root manifest
+  await updatePackages(allPackages, updateSpecification);
+  await updatePackage(
+    { dirPath: WORKSPACE_ROOT, manifest: rootManifest },
+    updateSpecification,
+  );
 }
