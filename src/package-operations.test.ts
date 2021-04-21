@@ -44,6 +44,9 @@ type DependencyFieldsDict = Partial<
   Record<PackageDependencyFields, Record<string, string>>
 >;
 
+// Convenience method to match behavior of utils.writeJsonFile
+const jsonStringify = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
 const getMockManifest = (
   name: string,
   version: string,
@@ -249,14 +252,10 @@ describe('package-operations', () => {
         expect(writeFileMock).toHaveBeenCalledTimes(1);
         expect(writeFileMock).toHaveBeenCalledWith(
           getMockWritePath(dir),
-          JSON.stringify(
-            {
-              ...cloneDeep(manifest),
-              version: newVersion,
-            },
-            null,
-            2,
-          ),
+          jsonStringify({
+            ...cloneDeep(manifest),
+            version: newVersion,
+          }),
         );
       });
 
@@ -280,14 +279,10 @@ describe('package-operations', () => {
         expect(writeFileMock).toHaveBeenCalledTimes(1);
         expect(writeFileMock).toHaveBeenCalledWith(
           getMockWritePath(dir),
-          JSON.stringify(
-            {
-              ...cloneDeep(manifest),
-              version: newVersion,
-            },
-            null,
-            2,
-          ),
+          jsonStringify({
+            ...cloneDeep(manifest),
+            version: newVersion,
+          }),
         );
       });
 
@@ -326,10 +321,8 @@ describe('package-operations', () => {
         expect(writeFileMock).toHaveBeenCalledTimes(1);
         expect(writeFileMock).toHaveBeenCalledWith(
           getMockWritePath(dir),
-          JSON.stringify(
+          jsonStringify(
             getMockManifest(name, newVersion, expectedDependencies),
-            null,
-            2,
           ),
         );
       });
@@ -365,26 +358,18 @@ describe('package-operations', () => {
         expect(writeFileMock).toHaveBeenNthCalledWith(
           1,
           getMockWritePath(dir1),
-          JSON.stringify(
-            {
-              ...cloneDeep(manifest1),
-              version: newVersion,
-            },
-            null,
-            2,
-          ),
+          jsonStringify({
+            ...cloneDeep(manifest1),
+            version: newVersion,
+          }),
         );
         expect(writeFileMock).toHaveBeenNthCalledWith(
           2,
           getMockWritePath(dir2),
-          JSON.stringify(
-            {
-              ...cloneDeep(manifest2),
-              version: newVersion,
-            },
-            null,
-            2,
-          ),
+          jsonStringify({
+            ...cloneDeep(manifest2),
+            version: newVersion,
+          }),
         );
       });
     });

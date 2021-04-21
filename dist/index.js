@@ -4042,9 +4042,6 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
 ;// CONCATENATED MODULE: ./lib/utils.js
 
 
-//---------------------------------------------
-// Constants & Types
-//---------------------------------------------
 // Our custom input env keys
 var InputKeys;
 (function (InputKeys) {
@@ -4070,9 +4067,6 @@ var InputNames;
 })(InputNames || (InputNames = {}));
 const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 const TWO_SPACES = '  ';
-//---------------------------------------------
-// Utility Functions
-//---------------------------------------------
 /**
  * Validates and returns the inputs to the Action.
  * We perform additional validation because the GitHub Actions configuration
@@ -4126,6 +4120,17 @@ async function readJsonFile(path) {
         throw new Error(`Assumed JSON file at path "${path}" parsed to a falsy value.`);
     }
     return obj;
+}
+/**
+ * Attempts to write the given JSON-like value to the file at the given path.
+ * Adds a newline to the end of the file.
+ *
+ * @param path - The path to write the JSON file to, including the file itself.
+ * @param jsonValue - The JSON-like value to write to the file. Make sure that
+ * JSON.stringify can handle it.
+ */
+async function writeJsonFile(path, jsonValue) {
+    await external_fs_.promises.writeFile(path, `${JSON.stringify(jsonValue, null, 2)}\n`);
 }
 /**
  * Checks whether the given value is a valid, unprefixed SemVer version string.
@@ -4379,7 +4384,7 @@ async function updatePackages(allPackages, updateSpecification) {
  * the update is performed.
  */
 async function updatePackage(packageMetadata, updateSpecification) {
-    await external_fs_.promises.writeFile(external_path_default().join(packageMetadata.dirPath, PACKAGE_JSON), JSON.stringify(getUpdatedManifest(packageMetadata.manifest, updateSpecification), null, 2));
+    await writeJsonFile(external_path_default().join(packageMetadata.dirPath, PACKAGE_JSON), getUpdatedManifest(packageMetadata.manifest, updateSpecification));
 }
 /**
  * Updates the given manifest per the update specification as follows:

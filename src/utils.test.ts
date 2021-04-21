@@ -1,18 +1,20 @@
 import fs from 'fs';
 import {
+  AcceptedSemverReleaseTypes,
   getActionInputs,
+  InputKeys,
+  isMajorSemverDiff,
   isTruthyString,
   isValidSemver,
-  isMajorSemverDiff,
   readJsonFile,
+  writeJsonFile,
   tabs,
-  AcceptedSemverReleaseTypes,
-  InputKeys,
 } from './utils';
 
 jest.mock('fs', () => ({
   promises: {
     readFile: jest.fn(),
+    writeFile: jest.fn(),
   },
 }));
 
@@ -92,6 +94,10 @@ describe('getActionInputs', () => {
 });
 
 describe('readJsonFile', () => {
+  afterAll(() => {
+    jest.clearAllMocks();
+  });
+
   it('reads a JSON file and returns it as an object', async () => {
     const expectedResult = { foo: ['bar', 'baz'] };
     const path = 'arbitrary/path';
@@ -126,6 +132,25 @@ describe('readJsonFile', () => {
       .mockImplementationOnce(async () => mockJsonString);
 
     await expect(readJsonFile(path)).rejects.toThrow(/falsy value\.$/u);
+  });
+});
+
+describe('writeJsonFile', () => {
+  afterAll(() => {
+    jest.clearAllMocks();
+  });
+
+  const stringify = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+
+  it('stringifies a JSON-like value and writes it to disk', async () => {
+    const jsonValue = { foo: ['bar', 'baz'] };
+    const path = 'arbitrary/path';
+
+    const writeFileSpy = jest.spyOn(fs.promises, 'writeFile');
+
+    await writeJsonFile(path, jsonValue);
+    expect(writeFileSpy).toHaveBeenCalledTimes(1);
+    expect(writeFileSpy).toHaveBeenCalledWith(path, stringify(jsonValue));
   });
 });
 

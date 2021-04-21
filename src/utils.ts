@@ -2,10 +2,6 @@ import { promises as fs } from 'fs';
 import semverParse from 'semver/functions/parse';
 import type { ReleaseType as SemverReleaseType } from 'semver';
 
-//---------------------------------------------
-// Constants & Types
-//---------------------------------------------
-
 // Our custom input env keys
 export enum InputKeys {
   ReleaseType = 'RELEASE_TYPE',
@@ -52,10 +48,6 @@ export interface ActionInputs {
 export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 
 const TWO_SPACES = '  ';
-
-//---------------------------------------------
-// Utility Functions
-//---------------------------------------------
 
 /**
  * Validates and returns the inputs to the Action.
@@ -138,6 +130,21 @@ export async function readJsonFile(
     );
   }
   return obj;
+}
+
+/**
+ * Attempts to write the given JSON-like value to the file at the given path.
+ * Adds a newline to the end of the file.
+ *
+ * @param path - The path to write the JSON file to, including the file itself.
+ * @param jsonValue - The JSON-like value to write to the file. Make sure that
+ * JSON.stringify can handle it.
+ */
+export async function writeJsonFile(
+  path: string,
+  jsonValue: unknown,
+): Promise<void> {
+  await fs.writeFile(path, `${JSON.stringify(jsonValue, null, 2)}\n`);
 }
 
 /**

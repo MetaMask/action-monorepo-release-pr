@@ -7,6 +7,7 @@ import {
   isValidSemver,
   readJsonFile,
   WORKSPACE_ROOT,
+  writeJsonFile,
 } from './utils';
 
 const PACKAGE_JSON = 'package.json';
@@ -140,13 +141,9 @@ export async function updatePackage(
   packageMetadata: { dirPath: string; manifest: Partial<PackageManifest> },
   updateSpecification: UpdateSpecification,
 ): Promise<void> {
-  await fs.writeFile(
+  await writeJsonFile(
     pathUtils.join(packageMetadata.dirPath, PACKAGE_JSON),
-    JSON.stringify(
-      getUpdatedManifest(packageMetadata.manifest, updateSpecification),
-      null,
-      2,
-    ),
+    getUpdatedManifest(packageMetadata.manifest, updateSpecification),
   );
 }
 
