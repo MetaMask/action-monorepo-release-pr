@@ -1,5 +1,5 @@
 name: 'Create Monorepo Release PR'
-description: 'Bump monorepo package versions and create a release PR.'
+description: 'Update the versions of monorepo packages and create a release PR.'
 
 inputs:
   release-type:
@@ -13,8 +13,8 @@ runs:
   using: 'composite'
   steps:
     - id: update-packages
-      run: node $GITHUB_ACTION_PATH/dist/index.js
       shell: bash
+      run: node ${{ github.action_path }}/dist/index.js
     - id: create-release-pr
-      run: $GITHUB_ACTION_PATH/src/create-release-pr.sh ${{ steps.update-packages.outputs.NEW_VERSION }}
       shell: bash
+      run: ${{ github.action_path }}/src/create-release-pr.sh ${{ steps.update-packages.outputs.NEW_VERSION }}
