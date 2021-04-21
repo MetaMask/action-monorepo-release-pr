@@ -98,6 +98,10 @@ export async function getPackagesToUpdate(
       shouldBeUpdated.add(packageName);
     }
   }
+
+  if (shouldBeUpdated.size === 0) {
+    throw new Error(`There are no packages to update.`);
+  }
   return shouldBeUpdated;
 }
 

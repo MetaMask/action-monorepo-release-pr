@@ -185,6 +185,10 @@ describe('package-operations', () => {
       [packageNames[2]]: {},
     };
 
+    afterEach(() => {
+      jest.clearAllMocks();
+    });
+
     afterAll(() => {
       jest.restoreAllMocks();
     });
@@ -205,6 +209,15 @@ describe('package-operations', () => {
       expect(
         await getPackagesToUpdate(mockMetadataRecord as any, false),
       ).toStrictEqual(new Set([packageNames[1]]));
+      expect(didPackageChangeMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('throws an error if there are no packages to update', async () => {
+      didPackageChangeMock.mockImplementation(async () => false);
+
+      await expect(
+        getPackagesToUpdate(mockMetadataRecord as any, false),
+      ).rejects.toThrow(/no packages to update/u);
       expect(didPackageChangeMock).toHaveBeenCalledTimes(3);
     });
   });

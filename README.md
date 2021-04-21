@@ -20,6 +20,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v2
+              with:
+                  # This is to guarantee that the most recent tag is fetched.
+                  # This can be configured to a more reasonable value by consumers.
+                  fetch-depth: 0
             - name: Get Node.js version
               id: nvm
               run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
