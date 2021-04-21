@@ -7,6 +7,7 @@ import {
   readJsonFile,
   tabs,
   AcceptedSemverReleaseTypes,
+  InputKeys,
 } from './utils';
 
 jest.mock('fs', () => ({
@@ -14,11 +15,6 @@ jest.mock('fs', () => ({
     readFile: jest.fn(),
   },
 }));
-
-const INPUT_KEYS = {
-  RELEASE_TYPE: 'INPUT_RELEASE-TYPE',
-  RELEASE_VERSION: 'INPUT_RELEASE-VERSION',
-};
 
 const mockProcessEnv = ({
   releaseType,
@@ -29,17 +25,17 @@ const mockProcessEnv = ({
 }) => {
   // process.env.GITHUB_WORKSPACE = require.resolve('..')
   if (releaseType !== undefined) {
-    process.env[INPUT_KEYS.RELEASE_TYPE] = releaseType;
+    process.env[InputKeys.ReleaseType] = releaseType;
   }
   if (releaseVersion !== undefined) {
-    process.env[INPUT_KEYS.RELEASE_VERSION] = releaseVersion;
+    process.env[InputKeys.ReleaseVersion] = releaseVersion;
   }
 };
 
 const unmockProcessEnv = () => {
   // foo @ts-ignore
   // delete process.env.GITHUB_WORKSPACE
-  Object.values(INPUT_KEYS).forEach((key) => delete process.env[key]);
+  Object.values(InputKeys).forEach((key) => delete process.env[key]);
 };
 
 describe('getActionInputs', () => {

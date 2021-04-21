@@ -4042,7 +4042,24 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
 ;// CONCATENATED MODULE: ./lib/utils.js
 
 
-
+//---------------------------------------------
+// Constants & Types
+//---------------------------------------------
+// Our custom input env keys
+var InputKeys;
+(function (InputKeys) {
+    InputKeys["ReleaseType"] = "RELEASE_TYPE";
+    InputKeys["ReleaseVersion"] = "RELEASE_VERSION";
+})(InputKeys || (InputKeys = {}));
+/**
+ * SemVer release types that are accepted by this Action.
+ */
+var AcceptedSemverReleaseTypes;
+(function (AcceptedSemverReleaseTypes) {
+    AcceptedSemverReleaseTypes["Major"] = "major";
+    AcceptedSemverReleaseTypes["Minor"] = "minor";
+    AcceptedSemverReleaseTypes["Patch"] = "patch";
+})(AcceptedSemverReleaseTypes || (AcceptedSemverReleaseTypes = {}));
 /**
  * The names of the inputs to the Action, per action.yml.
  */
@@ -4053,15 +4070,6 @@ var InputNames;
 })(InputNames || (InputNames = {}));
 const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
 const TWO_SPACES = '  ';
-/**
- * SemVer release types that are accepted by this action.
- */
-var AcceptedSemverReleaseTypes;
-(function (AcceptedSemverReleaseTypes) {
-    AcceptedSemverReleaseTypes["Major"] = "major";
-    AcceptedSemverReleaseTypes["Minor"] = "minor";
-    AcceptedSemverReleaseTypes["Patch"] = "patch";
-})(AcceptedSemverReleaseTypes || (AcceptedSemverReleaseTypes = {}));
 //---------------------------------------------
 // Utility Functions
 //---------------------------------------------
@@ -4074,9 +4082,8 @@ var AcceptedSemverReleaseTypes;
  */
 function getActionInputs() {
     const inputs = {
-        ReleaseType: (0,core.getInput)(InputNames.ReleaseType) ||
-            null,
-        ReleaseVersion: (0,core.getInput)(InputNames.ReleaseVersion) || null,
+        ReleaseType: process.env.RELEASE_TYPE || null,
+        ReleaseVersion: process.env.RELEASE_VERSION || null,
     };
     validateActionInputs(inputs);
     return inputs;

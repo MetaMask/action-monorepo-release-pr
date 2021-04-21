@@ -1,5 +1,4 @@
 import { promises as fs } from 'fs';
-import { getInput as getActionInput } from '@actions/core';
 import semverParse from 'semver/functions/parse';
 import type { ReleaseType as SemverReleaseType } from 'semver';
 
@@ -7,8 +6,23 @@ import type { ReleaseType as SemverReleaseType } from 'semver';
 // Constants & Types
 //---------------------------------------------
 
+// Our custom input env keys
+export enum InputKeys {
+  ReleaseType = 'RELEASE_TYPE',
+  ReleaseVersion = 'RELEASE_VERSION',
+}
+
 /**
- * Add missing properties to "process.env".
+ * SemVer release types that are accepted by this Action.
+ */
+export enum AcceptedSemverReleaseTypes {
+  Major = 'major',
+  Minor = 'minor',
+  Patch = 'patch',
+}
+
+/**
+ * Add missing properties to "process.env" interface.
  */
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -16,6 +30,8 @@ declare global {
     interface ProcessEnv {
       // The root of the workspace running this action
       GITHUB_WORKSPACE: string;
+      [InputKeys.ReleaseType]: string;
+      [InputKeys.ReleaseVersion]: string;
     }
   }
 }
@@ -28,23 +44,14 @@ export enum InputNames {
   ReleaseVersion = 'release-version',
 }
 
-export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
-
-const TWO_SPACES = '  ';
-
-/**
- * SemVer release types that are accepted by this action.
- */
-export enum AcceptedSemverReleaseTypes {
-  Major = 'major',
-  Minor = 'minor',
-  Patch = 'patch',
-}
-
 export interface ActionInputs {
   readonly ReleaseType: AcceptedSemverReleaseTypes | null;
   readonly ReleaseVersion: string | null;
 }
+
+export const WORKSPACE_ROOT = process.env.GITHUB_WORKSPACE;
+
+const TWO_SPACES = '  ';
 
 //---------------------------------------------
 // Utility Functions
@@ -60,9 +67,8 @@ export interface ActionInputs {
 export function getActionInputs(): ActionInputs {
   const inputs: ActionInputs = {
     ReleaseType:
-      (getActionInput(InputNames.ReleaseType) as AcceptedSemverReleaseTypes) ||
-      null,
-    ReleaseVersion: getActionInput(InputNames.ReleaseVersion) || null,
+      (process.env.RELEASE_TYPE as AcceptedSemverReleaseTypes) || null,
+    ReleaseVersion: process.env.RELEASE_VERSION || null,
   };
   validateActionInputs(inputs);
   return inputs;
