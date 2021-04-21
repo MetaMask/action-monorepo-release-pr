@@ -7,16 +7,12 @@ inputs:
   release-version:
     description: 'A specific version to bump to. Mutually exclusive with "release-type".'
     required: false
-  # debug:
-  #   default: false
-  #   description: 'Whether the action is being tested.'
-  #   required: false
 runs:
   using: 'composite'
   steps:
-    - id: bump-versions
+    - id: update-packages
       run: node $GITHUB_ACTION_PATH/dist/index.js
       shell: bash
     - id: create-release-pr
-      run: $GITHUB_ACTION_PATH/src/create-release-pr.sh
+      run: $GITHUB_ACTION_PATH/src/create-release-pr.sh ${{ steps.update-packages.outputs.NEW_VERSION }}
       shell: bash

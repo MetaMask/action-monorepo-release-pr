@@ -4514,9 +4514,11 @@ async function main() {
         packagesToUpdate,
         synchronizeVersions,
     };
-    // Finally, bump the version of all packages and the root manifest
+    // Finally, bump the version of all packages and the root manifest, and add
+    // the new version an Action output
     await updatePackages(allPackages, updateSpecification);
     await updatePackage({ dirPath: WORKSPACE_ROOT, manifest: rootManifest }, updateSpecification);
+    (0,core.setOutput)('NEW_VERSION', newVersion);
 }
 //# sourceMappingURL=index.js.map
 })();

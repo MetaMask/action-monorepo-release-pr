@@ -1,4 +1,7 @@
-import { setFailed as setActionToFailed } from '@actions/core';
+import {
+  setFailed as setActionToFailed,
+  setOutput as setActionOutput,
+} from '@actions/core';
 import semverIncrement from 'semver/functions/inc';
 import semverDiff from 'semver/functions/diff';
 import type { ReleaseType as SemverReleaseType } from 'semver';
@@ -52,10 +55,12 @@ async function main(): Promise<void> {
     synchronizeVersions,
   };
 
-  // Finally, bump the version of all packages and the root manifest
+  // Finally, bump the version of all packages and the root manifest, and add
+  // the new version an Action output
   await updatePackages(allPackages, updateSpecification);
   await updatePackage(
     { dirPath: WORKSPACE_ROOT, manifest: rootManifest },
     updateSpecification,
   );
+  setActionOutput('NEW_VERSION', newVersion);
 }
