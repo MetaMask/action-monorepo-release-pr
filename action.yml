@@ -1,13 +1,20 @@
-name: 'Wait'
-description: 'Wait a designated number of milliseconds'
+name: 'Create Monorepo Release PR'
+description: 'Update the versions of monorepo packages and create a release PR.'
+
 inputs:
-  milliseconds:  # id of input
-    description: 'number of milliseconds to wait'
-    required: true
-    default: '1000'
-outputs:
-  time: # output will be available to future steps
-    description: 'The message to output'
+  release-type:
+    description: 'A SemVer version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "release-version".'
+    required: false
+  release-version:
+    description: 'A specific version to bump to. Mutually exclusive with "release-type".'
+    required: false
+
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
+  using: 'composite'
+  steps:
+    - id: update-packages
+      shell: bash
+      run: node ${{ github.action_path }}/dist/index.js
+    - id: create-release-pr
+      shell: bash
+      run: ${{ github.action_path }}/src/create-release-pr.sh ${{ steps.update-packages.outputs.NEW_VERSION }}
