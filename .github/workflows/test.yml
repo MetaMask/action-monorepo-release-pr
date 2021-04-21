@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - run: yarn install --ignore-scripts
+      - run: yarn install --frozen-lockfile --ignore-scripts
       - run: yarn build
       - run: yarn lint
       - run: yarn test
