@@ -1,5 +1,9 @@
-name: 'CI'
-on: push
+name: Build, Lint, and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   build-lint-test:
