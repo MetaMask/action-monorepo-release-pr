@@ -8,6 +8,10 @@ name: Create Monorepo Release Pull Request
 on:
     workflow_dispatch:
         inputs:
+            base-branch:
+                description: 'The base branch for git operations and the pull request.'
+                default: 'main'
+                required: true
             release-type:
                 description: 'A SemVer version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "release-version".'
                 required: false
@@ -24,6 +28,9 @@ jobs:
                   # This is to guarantee that the most recent tag is fetched.
                   # This can be configured to a more reasonable value by consumers.
                   fetch-depth: 0
+                  # We check out the specified branch, which will be used as the base
+                  # branch for all git operations and the release PR.
+                  ref: ${{ inputs.base-branch }}
             - name: Get Node.js version
               id: nvm
               run: echo ::set-output name=NODE_VERSION::$(cat .nvmrc)
