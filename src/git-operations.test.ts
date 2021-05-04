@@ -1,5 +1,5 @@
 import execa from 'execa';
-import { didPackageChange, initializeGit, getTags } from './git-operations';
+import { didPackageChange, getTags } from './git-operations';
 
 // We don't actually use it, so it doesn't matter what it is.
 process.env.GITHUB_WORKSPACE = 'root';
@@ -26,95 +26,24 @@ const PACKAGES: Readonly<Record<string, { name: string; dir: string }>> = {
 
 const RAW_MOCK_TAGS = `${Object.values(TAGS).join('\n')}\n`;
 
+const DEFAULT_TAGS: Readonly<Set<string>> = new Set(Object.values(TAGS));
+
 const RAW_DIFFS: Readonly<Record<TAGS, string>> = {
   [TAGS.A]: `packages/${PACKAGES.A.dir}/file.txt\npackages/${PACKAGES.B.dir}/file.txt\n`,
   [TAGS.B]: `packages/${PACKAGES.A.dir}/file.txt\n`,
   [TAGS.C]: `packages/${PACKAGES.B.dir}/file.txt\n`,
 };
 
-/**
- * ATTN: This test suite is order-dependent due to git tag results being cached
- * in the git-operations module.
- * The "initializeGit" tests must run before the "didPackageChange" tests.
- */
-
-describe('initializeGit', () => {
-  it('fetches the git tags', async () => {
+describe('getTags', () => {
+  it('successfully parses tags', async () => {
     execaMock.mockImplementationOnce(async () => {
       return { stdout: RAW_MOCK_TAGS };
     });
-    expect(await initializeGit()).toBeUndefined();
+
+    expect(await getTags()).toStrictEqual([DEFAULT_TAGS, TAGS.C]);
     expect(execaMock).toHaveBeenCalledTimes(1);
   });
 
-  it('is idempotent', async () => {
-    expect(await initializeGit()).toBeUndefined();
-    expect(execaMock).toHaveBeenCalledTimes(0);
-  });
-});
-
-describe('didPackageChange', () => {
-  it('returns true if there are no tags', async () => {
-    expect(
-      await didPackageChange({} as any, 'foo', new Set() as never),
-    ).toStrictEqual(true);
-    expect(execaMock).not.toHaveBeenCalled();
-  });
-
-  it('calls "git diff" with expected tag', async () => {
-    execaMock.mockImplementationOnce(async () => {
-      return { stdout: RAW_DIFFS[TAGS.A] };
-    });
-
-    expect(
-      await didPackageChange({
-        name: PACKAGES.A.name,
-        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
-        dirName: PACKAGES.A.dir,
-        dirPath: '', // just for interface compliance, not relevant
-      }),
-    ).toStrictEqual(true);
-    expect(execaMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('repeat call for tag retrieves result from cache', async () => {
-    expect(
-      await didPackageChange({
-        name: PACKAGES.A.name,
-        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
-        dirName: PACKAGES.A.dir,
-        dirPath: '', // just for interface compliance, not relevant
-      }),
-    ).toStrictEqual(true);
-    expect(execaMock).not.toHaveBeenCalled();
-  });
-
-  it('retrieves cached diff on repeat call for tag', async () => {
-    expect(
-      await didPackageChange({
-        name: PACKAGES.A.name,
-        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
-        dirName: PACKAGES.A.dir,
-        dirPath: '', // just for interface compliance, not relevant
-      }),
-    ).toStrictEqual(true);
-    expect(execaMock).not.toHaveBeenCalled();
-  });
-
-  it('throws if package manifest specifies version without tag', async () => {
-    await expect(
-      didPackageChange({
-        name: PACKAGES.A.name,
-        manifest: { name: PACKAGES.A.name, version: '2.0.0' },
-        dirName: PACKAGES.A.dir,
-        dirPath: '', // just for interface compliance, not relevant
-      }),
-    ).rejects.toThrow(/no corresponding tag/u);
-    expect(execaMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('getTags', () => {
   it('succeeds if repo has complete history and no tags', async () => {
     execaMock
       .mockImplementationOnce(async () => {
@@ -163,5 +92,66 @@ describe('getTags', () => {
       /^"git rev-parse --is-shallow-repository" returned unrecognized/u,
     );
     expect(execaMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('didPackageChange', () => {
+  it('returns true if there are no tags', async () => {
+    expect(await didPackageChange(new Set(), {} as any, 'foo')).toStrictEqual(
+      true,
+    );
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it('calls "git diff" with expected tag', async () => {
+    execaMock.mockImplementationOnce(async () => {
+      return { stdout: RAW_DIFFS[TAGS.A] };
+    });
+
+    expect(
+      await didPackageChange(DEFAULT_TAGS, {
+        name: PACKAGES.A.name,
+        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
+        dirName: PACKAGES.A.dir,
+        dirPath: '', // just for interface compliance, not relevant
+      }),
+    ).toStrictEqual(true);
+    expect(execaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeat call for tag retrieves result from cache', async () => {
+    expect(
+      await didPackageChange(DEFAULT_TAGS, {
+        name: PACKAGES.A.name,
+        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
+        dirName: PACKAGES.A.dir,
+        dirPath: '', // just for interface compliance, not relevant
+      }),
+    ).toStrictEqual(true);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it('retrieves cached diff on repeat call for tag', async () => {
+    expect(
+      await didPackageChange(DEFAULT_TAGS, {
+        name: PACKAGES.A.name,
+        manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
+        dirName: PACKAGES.A.dir,
+        dirPath: '', // just for interface compliance, not relevant
+      }),
+    ).toStrictEqual(true);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
+  it('throws if package manifest specifies version without tag', async () => {
+    await expect(
+      didPackageChange(DEFAULT_TAGS, {
+        name: PACKAGES.A.name,
+        manifest: { name: PACKAGES.A.name, version: '2.0.0' },
+        dirName: PACKAGES.A.dir,
+        dirPath: '', // just for interface compliance, not relevant
+      }),
+    ).rejects.toThrow(/no corresponding tag/u);
+    expect(execaMock).not.toHaveBeenCalled();
   });
 });
