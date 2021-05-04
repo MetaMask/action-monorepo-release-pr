@@ -36,6 +36,7 @@ const RAW_DIFFS: Readonly<Record<TAGS, string>> = {
 
 describe('getTags', () => {
   it('successfully parses tags', async () => {
+    // execa('git', ['tag', ...])
     execaMock.mockImplementationOnce(async () => {
       return { stdout: RAW_MOCK_TAGS };
     });
@@ -45,32 +46,37 @@ describe('getTags', () => {
   });
 
   it('succeeds if repo has complete history and no tags', async () => {
-    execaMock
-      .mockImplementationOnce(async () => {
+    execaMock.mockImplementation(async (...args) => {
+      const gitCommand = args[1][0];
+      if (gitCommand === 'tag') {
         return { stdout: '' };
-      })
-      .mockImplementationOnce(async () => {
+      } else if (gitCommand === 'rev-parse') {
         return { stdout: 'false' };
-      });
+      }
+      throw new Error(`Unrecognized git command: ${gitCommand}`);
+    });
 
     expect(await getTags()).toStrictEqual([new Set(), null]);
     expect(execaMock).toHaveBeenCalledTimes(2);
   });
 
   it('throws if repo has incomplete history and no tags', async () => {
-    execaMock
-      .mockImplementationOnce(async () => {
+    execaMock.mockImplementation(async (...args) => {
+      const gitCommand = args[1][0];
+      if (gitCommand === 'tag') {
         return { stdout: '' };
-      })
-      .mockImplementationOnce(async () => {
+      } else if (gitCommand === 'rev-parse') {
         return { stdout: 'true' };
-      });
+      }
+      throw new Error(`Unrecognized git command: ${gitCommand}`);
+    });
 
     await expect(getTags()).rejects.toThrow(/^"git tag" returned no tags/u);
     expect(execaMock).toHaveBeenCalledTimes(2);
   });
 
   it('throws if repo has invalid tags', async () => {
+    // execa('git', ['tag', ...])
     execaMock.mockImplementationOnce(async () => {
       return { stdout: 'foo\nbar\n' };
     });
@@ -80,13 +86,15 @@ describe('getTags', () => {
   });
 
   it('throws if git rev-parse returns unrecognized value', async () => {
-    execaMock
-      .mockImplementationOnce(async () => {
+    execaMock.mockImplementation(async (...args) => {
+      const gitCommand = args[1][0];
+      if (gitCommand === 'tag') {
         return { stdout: '' };
-      })
-      .mockImplementationOnce(async () => {
+      } else if (gitCommand === 'rev-parse') {
         return { stdout: 'foo' };
-      });
+      }
+      throw new Error(`Unrecognized git command: ${gitCommand}`);
+    });
 
     await expect(getTags()).rejects.toThrow(
       /^"git rev-parse --is-shallow-repository" returned unrecognized/u,
