@@ -2,11 +2,15 @@ name: 'Create Monorepo Release PR'
 description: 'Update the versions of monorepo packages and create a release PR.'
 
 inputs:
+  initial-release:
+    default: 'false'
+    description: '"true" or "false". Whether the PR is for the initial release of the package.'
+    required: false
   release-type:
-    description: 'A SemVer version diff, i.e. major, minor, patch, prerelease etc. Mutually exclusive with "release-version".'
+    description: 'A SemVer version diff, e.g. "major", "minor", or "patch". Mutually exclusive with "release-version".'
     required: false
   release-version:
-    description: 'A specific version to bump to. Mutually exclusive with "release-type".'
+    description: 'A plain SemVer version string, specifying the version to bump to. Mutually exclusive with "release-type".'
     required: false
 
 runs:
@@ -16,6 +20,7 @@ runs:
       shell: bash
       run: node ${{ github.action_path }}/dist/index.js
       env:
+        INITIAL_RELEASE: ${{ inputs.initial-release }}
         RELEASE_TYPE: ${{ inputs.release-type }}
         RELEASE_VERSION: ${{ inputs.release-version }}
     - id: create-release-pr

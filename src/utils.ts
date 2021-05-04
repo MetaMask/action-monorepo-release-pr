@@ -4,6 +4,7 @@ import type { ReleaseType as SemverReleaseType } from 'semver';
 
 // Our custom input env keys
 export enum InputKeys {
+  InitialRelease = 'INITIAL_RELEASE',
   ReleaseType = 'RELEASE_TYPE',
   ReleaseVersion = 'RELEASE_VERSION',
 }
@@ -26,6 +27,7 @@ declare global {
     interface ProcessEnv {
       // The root of the workspace running this action
       GITHUB_WORKSPACE: string;
+      [InputKeys.InitialRelease]: string;
       [InputKeys.ReleaseType]: string;
       [InputKeys.ReleaseVersion]: string;
     }
@@ -36,11 +38,13 @@ declare global {
  * The names of the inputs to the Action, per action.yml.
  */
 export enum InputNames {
+  InitialRelease = 'initial-release',
   ReleaseType = 'release-type',
   ReleaseVersion = 'release-version',
 }
 
 export interface ActionInputs {
+  readonly InitialRelease: boolean;
   readonly ReleaseType: AcceptedSemverReleaseTypes | null;
   readonly ReleaseVersion: string | null;
 }
@@ -58,9 +62,11 @@ const TWO_SPACES = '  ';
  */
 export function getActionInputs(): ActionInputs {
   const inputs: ActionInputs = {
+    InitialRelease: process.env[InputKeys.InitialRelease] === 'true',
     ReleaseType:
-      (process.env.RELEASE_TYPE as AcceptedSemverReleaseTypes) || null,
-    ReleaseVersion: process.env.RELEASE_VERSION || null,
+      (process.env[InputKeys.ReleaseType] as AcceptedSemverReleaseTypes) ||
+      null,
+    ReleaseVersion: process.env[InputKeys.ReleaseVersion] || null,
   };
   validateActionInputs(inputs);
   return inputs;
@@ -71,6 +77,15 @@ export function getActionInputs(): ActionInputs {
  * Throws an error if validation fails.
  */
 function validateActionInputs(inputs: ActionInputs): void {
+  if (
+    process.env.INITIAL_RELEASE !== 'true' &&
+    process.env.INITIAL_RELEASE !== 'false'
+  ) {
+    throw new Error(
+      `"${InputNames.InitialRelease}" must be either "true" or "false".`,
+    );
+  }
+
   if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
     throw new Error(
       `Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`,

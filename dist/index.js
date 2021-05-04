@@ -4045,6 +4045,7 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
 // Our custom input env keys
 var InputKeys;
 (function (InputKeys) {
+    InputKeys["InitialRelease"] = "INITIAL_RELEASE";
     InputKeys["ReleaseType"] = "RELEASE_TYPE";
     InputKeys["ReleaseVersion"] = "RELEASE_VERSION";
 })(InputKeys || (InputKeys = {}));
@@ -4062,6 +4063,7 @@ var AcceptedSemverReleaseTypes;
  */
 var InputNames;
 (function (InputNames) {
+    InputNames["InitialRelease"] = "initial-release";
     InputNames["ReleaseType"] = "release-type";
     InputNames["ReleaseVersion"] = "release-version";
 })(InputNames || (InputNames = {}));
@@ -4076,8 +4078,10 @@ const TWO_SPACES = '  ';
  */
 function getActionInputs() {
     const inputs = {
-        ReleaseType: process.env.RELEASE_TYPE || null,
-        ReleaseVersion: process.env.RELEASE_VERSION || null,
+        InitialRelease: process.env[InputKeys.InitialRelease] === 'true',
+        ReleaseType: process.env[InputKeys.ReleaseType] ||
+            null,
+        ReleaseVersion: process.env[InputKeys.ReleaseVersion] || null,
     };
     validateActionInputs(inputs);
     return inputs;
@@ -4087,6 +4091,10 @@ function getActionInputs() {
  * Throws an error if validation fails.
  */
 function validateActionInputs(inputs) {
+    if (process.env.INITIAL_RELEASE !== 'true' &&
+        process.env.INITIAL_RELEASE !== 'false') {
+        throw new Error(`"${InputNames.InitialRelease}" must be either "true" or "false".`);
+    }
     if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
         throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`);
     }
