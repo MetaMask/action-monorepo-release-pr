@@ -13,6 +13,8 @@ let TAGS: Readonly<string[]>;
 const DIFFS: DiffMap = new Map();
 
 /**
+ * ATTN: This function must be called before other git operations are performed.
+ *
  * Executes "git tag" and caches the result.
  * Idempotent, but only if executed serially.
  *
@@ -111,7 +113,8 @@ async function performDiff(
 }
 
 /**
- * Only exported for testing purposes. Consumers should use initializeGit.
+ * ATTN: Only exported for testing purposes. Consumers should use initializeGit.
+ *
  * Utility function for executing "git tag" and parsing the result.
  *
  * @param allowNoTags - Whether to permit "git tag" returning no tags.
