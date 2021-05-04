@@ -135,8 +135,11 @@ async function performDiff(
 export async function getTags(): Promise<
   Readonly<[Set<string>, string | null]>
 > {
+  // The --merged flag ensures that we only get tags that are parents of or
+  // equal to the current HEAD.
   const rawTags = await performGitOperation('tag', '--merged');
   const allTags = rawTags.split('\n').filter((value) => value !== '');
+
   if (allTags.length === 0) {
     if (await hasCompleteGitHistory()) {
       return [new Set(), null];
