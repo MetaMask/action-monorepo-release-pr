@@ -54,7 +54,7 @@ describe('initializeGit', () => {
 });
 
 describe('didPackageChange', () => {
-  it('calls "git tag" and "git diff" with expected tag', async () => {
+  it('calls "git diff" with expected tag', async () => {
     execaMock.mockImplementationOnce(async () => {
       return { stdout: RAW_DIFFS[TAGS.A] };
     });
@@ -67,7 +67,7 @@ describe('didPackageChange', () => {
         dirPath: '', // just for interface compliance, not relevant
       }),
     ).toStrictEqual(true);
-    expect(execaMock).not.toHaveBeenCalledTimes(2);
+    expect(execaMock).toHaveBeenCalledTimes(1);
   });
 
   it('repeat call for tag retrieves result from cache', async () => {
