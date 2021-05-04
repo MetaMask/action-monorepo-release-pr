@@ -19,17 +19,12 @@ jest.mock('fs', () => ({
 }));
 
 const mockProcessEnv = ({
-  isInitialRelease = 'false',
   releaseType,
   releaseVersion,
 }: {
-  isInitialRelease?: string;
   releaseType?: string;
   releaseVersion?: string;
 }) => {
-  if (isInitialRelease !== undefined) {
-    process.env[InputKeys.IsInitialRelease] = isInitialRelease;
-  }
   if (releaseType !== undefined) {
     process.env[InputKeys.ReleaseType] = releaseType;
   }
@@ -47,21 +42,10 @@ describe('getActionInputs', () => {
     unmockProcessEnv();
   });
 
-  it('correctly parses valid input: initial-release = "true"', () => {
-    const releaseVersion = '1.0.0';
-    mockProcessEnv({ releaseVersion, isInitialRelease: 'true' });
-    expect(getActionInputs()).toStrictEqual({
-      IsInitialRelease: true,
-      ReleaseType: null,
-      ReleaseVersion: releaseVersion,
-    });
-  });
-
   it('correctly parses valid input: release-type', () => {
     for (const releaseType of Object.values(AcceptedSemverReleaseTypes)) {
       mockProcessEnv({ releaseType });
       expect(getActionInputs()).toStrictEqual({
-        IsInitialRelease: false,
         ReleaseType: releaseType,
         ReleaseVersion: null,
       });
@@ -73,18 +57,10 @@ describe('getActionInputs', () => {
     for (const releaseVersion of versions) {
       mockProcessEnv({ releaseVersion });
       expect(getActionInputs()).toStrictEqual({
-        IsInitialRelease: false,
         ReleaseType: null,
         ReleaseVersion: releaseVersion,
       });
     }
-  });
-
-  it('throws if "initial-release" is an invalid value', () => {
-    mockProcessEnv({ isInitialRelease: 'foo' });
-    expect(() => getActionInputs()).toThrow(
-      /must be either "true" or "false"/u,
-    );
   });
 
   it('throws if neither "release-type" nor "release-version" are specified', () => {

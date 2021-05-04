@@ -43,17 +43,24 @@ describe('initializeGit', () => {
     execaMock.mockImplementationOnce(async () => {
       return { stdout: RAW_MOCK_TAGS };
     });
-    expect(await initializeGit(false)).toBeUndefined();
+    expect(await initializeGit()).toBeUndefined();
     expect(execaMock).toHaveBeenCalledTimes(1);
   });
 
   it('is idempotent', async () => {
-    expect(await initializeGit(false)).toBeUndefined();
+    expect(await initializeGit()).toBeUndefined();
     expect(execaMock).toHaveBeenCalledTimes(0);
   });
 });
 
 describe('didPackageChange', () => {
+  it('returns true if there are no tags', async () => {
+    expect(
+      await didPackageChange({} as any, 'foo', new Set() as never),
+    ).toStrictEqual(true);
+    expect(execaMock).not.toHaveBeenCalled();
+  });
+
   it('calls "git diff" with expected tag', async () => {
     execaMock.mockImplementationOnce(async () => {
       return { stdout: RAW_DIFFS[TAGS.A] };
@@ -108,24 +115,30 @@ describe('didPackageChange', () => {
 });
 
 describe('getTags', () => {
-  it('succeeds if repo has no tags and allowNoTags is true', async () => {
-    execaMock.mockImplementationOnce(async () => {
-      return { stdout: '' };
-    });
+  it('succeeds if repo has complete history and no tags', async () => {
+    execaMock
+      .mockImplementationOnce(async () => {
+        return { stdout: '' };
+      })
+      .mockImplementationOnce(async () => {
+        return { stdout: 'false' };
+      });
 
-    expect(await getTags(true)).toStrictEqual([[], null]);
-    expect(execaMock).toHaveBeenCalledTimes(1);
+    expect(await getTags()).toStrictEqual([new Set(), null]);
+    expect(execaMock).toHaveBeenCalledTimes(2);
   });
 
-  it('throws if repo has no tags and allowNoTags is false', async () => {
-    execaMock.mockImplementationOnce(async () => {
-      return { stdout: '' };
-    });
+  it('throws if repo has incomplete history and no tags', async () => {
+    execaMock
+      .mockImplementationOnce(async () => {
+        return { stdout: '' };
+      })
+      .mockImplementationOnce(async () => {
+        return { stdout: 'true' };
+      });
 
-    await expect(getTags(false)).rejects.toThrow(
-      /^"git tag" returned no tags/u,
-    );
-    expect(execaMock).toHaveBeenCalledTimes(1);
+    await expect(getTags()).rejects.toThrow(/^"git tag" returned no tags/u);
+    expect(execaMock).toHaveBeenCalledTimes(2);
   });
 
   it('throws if repo has invalid tags', async () => {
@@ -133,7 +146,22 @@ describe('getTags', () => {
       return { stdout: 'foo\nbar\n' };
     });
 
-    await expect(getTags(false)).rejects.toThrow(/^Invalid latest tag/u);
+    await expect(getTags()).rejects.toThrow(/^Invalid latest tag/u);
     expect(execaMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws if git rev-parse returns unrecognized value', async () => {
+    execaMock
+      .mockImplementationOnce(async () => {
+        return { stdout: '' };
+      })
+      .mockImplementationOnce(async () => {
+        return { stdout: 'foo' };
+      });
+
+    await expect(getTags()).rejects.toThrow(
+      /^"git rev-parse --is-shallow-repository" returned unrecognized/u,
+    );
+    expect(execaMock).toHaveBeenCalledTimes(2);
   });
 });

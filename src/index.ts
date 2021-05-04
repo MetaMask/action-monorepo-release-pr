@@ -23,9 +23,9 @@ main().catch((error) => {
 async function main(): Promise<void> {
   const actionInputs = getActionInputs();
 
-  // Get all git tags. If "git tag" returns no tags, an error is thrown unless
-  // the IsInitialRelease input is true.
-  await initializeGit(actionInputs.IsInitialRelease);
+  // Get all git tags. An error is thrown if "git tag" returns no tags and the
+  // local git history is incomplete.
+  await initializeGit();
 
   const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
   const { version: currentVersion } = rootManifest;

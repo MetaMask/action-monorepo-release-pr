@@ -4045,7 +4045,6 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
 // Our custom input env keys
 var InputKeys;
 (function (InputKeys) {
-    InputKeys["IsInitialRelease"] = "IS_INITIAL_RELEASE";
     InputKeys["ReleaseType"] = "RELEASE_TYPE";
     InputKeys["ReleaseVersion"] = "RELEASE_VERSION";
 })(InputKeys || (InputKeys = {}));
@@ -4063,7 +4062,6 @@ var AcceptedSemverReleaseTypes;
  */
 var InputNames;
 (function (InputNames) {
-    InputNames["IsInitialRelease"] = "initial-release";
     InputNames["ReleaseType"] = "release-type";
     InputNames["ReleaseVersion"] = "release-version";
 })(InputNames || (InputNames = {}));
@@ -4078,7 +4076,6 @@ const TWO_SPACES = '  ';
  */
 function getActionInputs() {
     const inputs = {
-        IsInitialRelease: process.env[InputKeys.IsInitialRelease] === 'true',
         ReleaseType: process.env[InputKeys.ReleaseType] ||
             null,
         ReleaseVersion: process.env[InputKeys.ReleaseVersion] || null,
@@ -4091,10 +4088,6 @@ function getActionInputs() {
  * Throws an error if validation fails.
  */
 function validateActionInputs(inputs) {
-    if (process.env.IS_INITIAL_RELEASE !== 'true' &&
-        process.env.IS_INITIAL_RELEASE !== 'false') {
-        throw new Error(`"${InputNames.IsInitialRelease}" must be either "true" or "false".`);
-    }
     if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
         throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`);
     }
@@ -4203,14 +4196,14 @@ const DIFFS = new Map();
 /**
  * ATTN: This function must be called before other git operations are performed.
  *
- * Executes "git tag" and caches the result.
- * Idempotent, but only if executed serially.
+ * Executes "git tag" and caches the result. Throws an error if fetching tags
+ * fails.
  *
- * @param allowNoTags - Whether to permit "git tag" returning no tags.
+ * Idempotent, but only if executed serially.
  */
-async function initializeGit(allowNoTags) {
+async function initializeGit() {
     if (!INITIALIZED_GIT) {
-        [TAGS] = await getTags(allowNoTags);
+        [TAGS] = await getTags();
         // eslint-disable-next-line require-atomic-updates
         INITIALIZED_GIT = true;
     }
@@ -4220,20 +4213,29 @@ async function initializeGit(allowNoTags) {
  *
  * Using git, checks whether the package changed since it was last released.
  *
- * Assumes that:
- * - initializeGit has been called.
+ * Assumes that initializeGit has been called. If it's not the
+ * first release of the package, also assumes that:
+ *
  * - The "version" field of the package's manifest corresponds to its latest
  * released version.
- * - The release commit of the package's latest version is tagged with
+ * - The release commit of the package's most recent version is tagged with
  * "v<VERSION>", where <VERSION> is equal to the manifest's "version" field.
  *
  * @param packageData - The metadata of the package to diff.
- * @returns Whether the package changed since its last release.
+ * @param packagesDir - The directory containing the monorepo's packages.
+ * @returns Whether the package changed since its last release. `true` is
+ * returned if there are no releases in the repository's history.
  */
-async function didPackageChange(packageData, packagesDir = 'packages') {
+async function didPackageChange(packageData, packagesDir = 'packages', _tags = TAGS) {
+    const tags = _tags;
+    // In this case, we assume that it's the first release, and every package
+    // is implicitly considered to have "changed".
+    if (tags.size === 0) {
+        return true;
+    }
     const { manifest: { name: packageName, version: currentVersion }, } = packageData;
     const tagOfCurrentVersion = versionToTag(currentVersion);
-    if (!TAGS.includes(tagOfCurrentVersion)) {
+    if (!tags.has(tagOfCurrentVersion)) {
         throw new Error(`Package "${packageName}" has version "${currentVersion}" in its manifest, but no corresponding tag "${tagOfCurrentVersion}" exists.`);
     }
     return hasDiff(packageData, tagOfCurrentVersion, packagesDir);
@@ -4274,24 +4276,45 @@ async function performDiff(tag, packagesDir) {
  * ATTN: Only exported for testing purposes. Consumers should use initializeGit.
  *
  * Utility function for executing "git tag" and parsing the result.
+ * An error is thrown if no tags are found and the local git history is
+ * incomplete.
  *
- * @param allowNoTags - Whether to permit "git tag" returning no tags.
  * @returns A tuple of all tags as a string array and the latest tag.
+ * The tuple is populated by an empty array and null if there are no tags.
  */
-async function getTags(allowNoTags) {
-    const rawTags = await performGitOperation('tag');
+async function getTags() {
+    const rawTags = await performGitOperation('tag', '--merged');
     const allTags = rawTags.split('\n').filter((value) => value !== '');
     if (allTags.length === 0) {
-        if (allowNoTags) {
-            return [[], null];
+        if (await hasCompleteGitHistory()) {
+            return [new Set(), null];
         }
-        throw new Error(`"git tag" returned no tags. Ensure that you've fetched the complete git history.`);
+        throw new Error(`"git tag" returned no tags. Increase your git fetch depth.`);
     }
     const latestTag = allTags[allTags.length - 1];
     if (!latestTag || !isValidSemver(clean_default()(latestTag))) {
         throw new Error(`Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`);
     }
-    return [allTags, latestTag];
+    return [new Set(allTags), latestTag];
+}
+/**
+ * Check whether the local repository has a complete git history.
+ * Implemented using "git rev-parse --is-shallow-repository".
+ *
+ * @returns Whether the local repository has a complete, as opposed to shallow,
+ * git history.
+ */
+async function hasCompleteGitHistory() {
+    const isShallow = await performGitOperation('rev-parse', '--is-shallow-repository');
+    // We invert the meaning of these strings because we want to know if the
+    // repository is NOT shallow.
+    if (isShallow === 'true') {
+        return false;
+    }
+    else if (isShallow === 'false') {
+        return true;
+    }
+    throw new Error(`"git rev-parse --is-shallow-repository" returned unrecognized value: ${isShallow}`);
 }
 /**
  * Utility function for performing git operations via execa.
@@ -4528,9 +4551,9 @@ main().catch((error) => {
 });
 async function main() {
     const actionInputs = getActionInputs();
-    // Get all git tags. If "git tag" returns no tags, an error is thrown unless
-    // the IsInitialRelease input is true.
-    await initializeGit(actionInputs.IsInitialRelease);
+    // Get all git tags. An error is thrown if "git tag" returns no tags and the
+    // local git history is incomplete.
+    await initializeGit();
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     const { version: currentVersion } = rootManifest;
     // Compute the new version and version diff from the inputs and root manifest
