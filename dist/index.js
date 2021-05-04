@@ -4045,7 +4045,7 @@ var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
 // Our custom input env keys
 var InputKeys;
 (function (InputKeys) {
-    InputKeys["InitialRelease"] = "INITIAL_RELEASE";
+    InputKeys["IsInitialRelease"] = "IS_INITIAL_RELEASE";
     InputKeys["ReleaseType"] = "RELEASE_TYPE";
     InputKeys["ReleaseVersion"] = "RELEASE_VERSION";
 })(InputKeys || (InputKeys = {}));
@@ -4063,7 +4063,7 @@ var AcceptedSemverReleaseTypes;
  */
 var InputNames;
 (function (InputNames) {
-    InputNames["InitialRelease"] = "initial-release";
+    InputNames["IsInitialRelease"] = "initial-release";
     InputNames["ReleaseType"] = "release-type";
     InputNames["ReleaseVersion"] = "release-version";
 })(InputNames || (InputNames = {}));
@@ -4078,7 +4078,7 @@ const TWO_SPACES = '  ';
  */
 function getActionInputs() {
     const inputs = {
-        InitialRelease: process.env[InputKeys.InitialRelease] === 'true',
+        IsInitialRelease: process.env[InputKeys.IsInitialRelease] === 'true',
         ReleaseType: process.env[InputKeys.ReleaseType] ||
             null,
         ReleaseVersion: process.env[InputKeys.ReleaseVersion] || null,
@@ -4091,9 +4091,9 @@ function getActionInputs() {
  * Throws an error if validation fails.
  */
 function validateActionInputs(inputs) {
-    if (process.env.INITIAL_RELEASE !== 'true' &&
-        process.env.INITIAL_RELEASE !== 'false') {
-        throw new Error(`"${InputNames.InitialRelease}" must be either "true" or "false".`);
+    if (process.env.IS_INITIAL_RELEASE !== 'true' &&
+        process.env.IS_INITIAL_RELEASE !== 'false') {
+        throw new Error(`"${InputNames.IsInitialRelease}" must be either "true" or "false".`);
     }
     if (!inputs.ReleaseType && !inputs.ReleaseVersion) {
         throw new Error(`Must specify either "${InputNames.ReleaseType}" or "${InputNames.ReleaseVersion}".`);
@@ -4529,8 +4529,8 @@ main().catch((error) => {
 async function main() {
     const actionInputs = getActionInputs();
     // Get all git tags. If "git tag" returns no tags, an error is thrown unless
-    // the InitialRelease input is true.
-    await initializeGit(actionInputs.InitialRelease);
+    // the IsInitialRelease input is true.
+    await initializeGit(actionInputs.IsInitialRelease);
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     const { version: currentVersion } = rootManifest;
     // Compute the new version and version diff from the inputs and root manifest

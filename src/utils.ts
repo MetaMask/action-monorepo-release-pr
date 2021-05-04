@@ -4,7 +4,7 @@ import type { ReleaseType as SemverReleaseType } from 'semver';
 
 // Our custom input env keys
 export enum InputKeys {
-  InitialRelease = 'INITIAL_RELEASE',
+  IsInitialRelease = 'IS_INITIAL_RELEASE',
   ReleaseType = 'RELEASE_TYPE',
   ReleaseVersion = 'RELEASE_VERSION',
 }
@@ -27,7 +27,7 @@ declare global {
     interface ProcessEnv {
       // The root of the workspace running this action
       GITHUB_WORKSPACE: string;
-      [InputKeys.InitialRelease]: string;
+      [InputKeys.IsInitialRelease]: string;
       [InputKeys.ReleaseType]: string;
       [InputKeys.ReleaseVersion]: string;
     }
@@ -38,13 +38,13 @@ declare global {
  * The names of the inputs to the Action, per action.yml.
  */
 export enum InputNames {
-  InitialRelease = 'initial-release',
+  IsInitialRelease = 'initial-release',
   ReleaseType = 'release-type',
   ReleaseVersion = 'release-version',
 }
 
 export interface ActionInputs {
-  readonly InitialRelease: boolean;
+  readonly IsInitialRelease: boolean;
   readonly ReleaseType: AcceptedSemverReleaseTypes | null;
   readonly ReleaseVersion: string | null;
 }
@@ -62,7 +62,7 @@ const TWO_SPACES = '  ';
  */
 export function getActionInputs(): ActionInputs {
   const inputs: ActionInputs = {
-    InitialRelease: process.env[InputKeys.InitialRelease] === 'true',
+    IsInitialRelease: process.env[InputKeys.IsInitialRelease] === 'true',
     ReleaseType:
       (process.env[InputKeys.ReleaseType] as AcceptedSemverReleaseTypes) ||
       null,
@@ -78,11 +78,11 @@ export function getActionInputs(): ActionInputs {
  */
 function validateActionInputs(inputs: ActionInputs): void {
   if (
-    process.env.INITIAL_RELEASE !== 'true' &&
-    process.env.INITIAL_RELEASE !== 'false'
+    process.env.IS_INITIAL_RELEASE !== 'true' &&
+    process.env.IS_INITIAL_RELEASE !== 'false'
   ) {
     throw new Error(
-      `"${InputNames.InitialRelease}" must be either "true" or "false".`,
+      `"${InputNames.IsInitialRelease}" must be either "true" or "false".`,
     );
   }
 
