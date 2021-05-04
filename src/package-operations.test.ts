@@ -56,7 +56,11 @@ const getMockManifest = (
 
 describe('package-operations', () => {
   describe('getPackageManifest', () => {
-    const readJsonFileMock = jest.spyOn(utils, 'readJsonFile');
+    let readJsonFileMock: jest.SpyInstance;
+
+    beforeEach(() => {
+      readJsonFileMock = jest.spyOn(utils, 'readJsonFile');
+    });
 
     it('gets and returns a valid manifest', async () => {
       const validManifest = { name: 'fooName', version: '1.0.0' };
@@ -123,7 +127,7 @@ describe('package-operations', () => {
   });
 
   describe('getMetadataForAllPackages', () => {
-    const readdirMock = jest.spyOn(fs.promises, 'readdir');
+    let readdirMock: jest.SpyInstance;
 
     const names = ['name1', 'name2', 'name3'];
     const dirs = ['dir1', 'dir2', 'dir3'];
@@ -148,6 +152,8 @@ describe('package-operations', () => {
     }
 
     beforeEach(() => {
+      readdirMock = jest.spyOn(fs.promises, 'readdir');
+
       jest.spyOn(fs.promises, 'lstat').mockImplementation((async (
         path: string,
       ) => {
@@ -175,7 +181,7 @@ describe('package-operations', () => {
   });
 
   describe('getPackagesToUpdate', () => {
-    const didPackageChangeMock = jest.spyOn(gitOps, 'didPackageChange');
+    let didPackageChangeMock: jest.SpyInstance;
 
     const packageNames = ['name1', 'name2', 'name3'];
 
@@ -184,6 +190,10 @@ describe('package-operations', () => {
       [packageNames[1]]: {},
       [packageNames[2]]: {},
     };
+
+    beforeEach(() => {
+      didPackageChangeMock = jest.spyOn(gitOps, 'didPackageChange');
+    });
 
     it('returns all packages if synchronizeVersions is true', async () => {
       expect(
