@@ -4201,12 +4201,14 @@ let INITIALIZED_GIT = false;
 let TAGS;
 const DIFFS = new Map();
 /**
- * Executes "git tag" and stores the result.
+ * Executes "git tag" and caches the result.
  * Idempotent, but only if executed serially.
+ *
+ * @param allowNoTags - Whether to permit "git tag" returning no tags.
  */
-async function initializeGit() {
+async function initializeGit(allowNoTags) {
     if (!INITIALIZED_GIT) {
-        [TAGS] = await getTags();
+        [TAGS] = await getTags(allowNoTags);
         // eslint-disable-next-line require-atomic-updates
         INITIALIZED_GIT = true;
     }
@@ -4217,6 +4219,7 @@ async function initializeGit() {
  * Using git, checks whether the package changed since it was last released.
  *
  * Assumes that:
+ * - initializeGit has been called.
  * - The "version" field of the package's manifest corresponds to its latest
  * released version.
  * - The release commit of the package's latest version is tagged with
@@ -4226,7 +4229,6 @@ async function initializeGit() {
  * @returns Whether the package changed since its last release.
  */
 async function didPackageChange(packageData, packagesDir = 'packages') {
-    await initializeGit();
     const { manifest: { name: packageName, version: currentVersion }, } = packageData;
     const tagOfCurrentVersion = versionToTag(currentVersion);
     if (!TAGS.includes(tagOfCurrentVersion)) {
@@ -4267,13 +4269,21 @@ async function performDiff(tag, packagesDir) {
     return (await performGitOperation('diff', tag, HEAD, '--name-only', '--', packagesDir)).split('\n');
 }
 /**
+ * Only exported for testing purposes. Consumers should use initializeGit.
  * Utility function for executing "git tag" and parsing the result.
  *
+ * @param allowNoTags - Whether to permit "git tag" returning no tags.
  * @returns A tuple of all tags as a string array and the latest tag.
  */
-async function getTags() {
+async function getTags(allowNoTags) {
     const rawTags = await performGitOperation('tag');
-    const allTags = rawTags.split('\n');
+    const allTags = rawTags.split('\n').filter((value) => value !== '');
+    if (allTags.length === 0) {
+        if (allowNoTags) {
+            return [[], null];
+        }
+        throw new Error(`"git tag" returned no tags. Ensure that you've fetched the complete git history.`);
+    }
     const latestTag = allTags[allTags.length - 1];
     if (!latestTag || !isValidSemver(clean_default()(latestTag))) {
         throw new Error(`Invalid latest tag. Expected a valid SemVer version. Received: ${latestTag}`);
@@ -4509,11 +4519,15 @@ function validatePackageManifest(manifest, manifestDirPath, requiredFields = ['n
 
 
 
+
 main().catch((error) => {
     (0,core.setFailed)(error);
 });
 async function main() {
     const actionInputs = getActionInputs();
+    // Get all git tags. If "git tag" returns no tags, an error is thrown unless
+    // the InitialRelease input is true.
+    await initializeGit(actionInputs.InitialRelease);
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
     const { version: currentVersion } = rootManifest;
     // Compute the new version and version diff from the inputs and root manifest

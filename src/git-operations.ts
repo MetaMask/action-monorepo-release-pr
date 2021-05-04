@@ -13,12 +13,14 @@ let TAGS: Readonly<string[]>;
 const DIFFS: DiffMap = new Map();
 
 /**
- * Executes "git tag" and stores the result.
+ * Executes "git tag" and caches the result.
  * Idempotent, but only if executed serially.
+ *
+ * @param allowNoTags - Whether to permit "git tag" returning no tags.
  */
-async function initializeGit(): Promise<void> {
+export async function initializeGit(allowNoTags: boolean): Promise<void> {
   if (!INITIALIZED_GIT) {
-    [TAGS] = await getTags();
+    [TAGS] = await getTags(allowNoTags);
     // eslint-disable-next-line require-atomic-updates
     INITIALIZED_GIT = true;
   }
@@ -30,6 +32,7 @@ async function initializeGit(): Promise<void> {
  * Using git, checks whether the package changed since it was last released.
  *
  * Assumes that:
+ * - initializeGit has been called.
  * - The "version" field of the package's manifest corresponds to its latest
  * released version.
  * - The release commit of the package's latest version is tagged with
@@ -42,8 +45,6 @@ export async function didPackageChange(
   packageData: PackageMetadata,
   packagesDir = 'packages',
 ): Promise<boolean> {
-  await initializeGit();
-
   const {
     manifest: { name: packageName, version: currentVersion },
   } = packageData;
@@ -110,13 +111,26 @@ async function performDiff(
 }
 
 /**
+ * Only exported for testing purposes. Consumers should use initializeGit.
  * Utility function for executing "git tag" and parsing the result.
  *
+ * @param allowNoTags - Whether to permit "git tag" returning no tags.
  * @returns A tuple of all tags as a string array and the latest tag.
  */
-async function getTags(): Promise<Readonly<[string[], string]>> {
+export async function getTags(
+  allowNoTags: boolean,
+): Promise<Readonly<[string[], string | null]>> {
   const rawTags = await performGitOperation('tag');
-  const allTags = rawTags.split('\n');
+  const allTags = rawTags.split('\n').filter((value) => value !== '');
+  if (allTags.length === 0) {
+    if (allowNoTags) {
+      return [[], null];
+    }
+    throw new Error(
+      `"git tag" returned no tags. Ensure that you've fetched the complete git history.`,
+    );
+  }
+
   const latestTag = allTags[allTags.length - 1];
   if (!latestTag || !isValidSemver(semverClean(latestTag))) {
     throw new Error(

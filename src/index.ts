@@ -13,6 +13,7 @@ import {
   getPackageManifest,
   updatePackage,
 } from './package-operations';
+import { initializeGit } from './git-operations';
 import { getActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
 main().catch((error) => {
@@ -21,6 +22,10 @@ main().catch((error) => {
 
 async function main(): Promise<void> {
   const actionInputs = getActionInputs();
+
+  // Get all git tags. If "git tag" returns no tags, an error is thrown unless
+  // the InitialRelease input is true.
+  await initializeGit(actionInputs.InitialRelease);
 
   const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
   const { version: currentVersion } = rootManifest;
