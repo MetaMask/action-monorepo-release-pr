@@ -4283,6 +4283,8 @@ async function performDiff(tag, packagesDir) {
  * The tuple is populated by an empty array and null if there are no tags.
  */
 async function getTags() {
+    // The --merged flag ensures that we only get tags that are parents of or
+    // equal to the current HEAD.
     const rawTags = await performGitOperation('tag', '--merged');
     const allTags = rawTags.split('\n').filter((value) => value !== '');
     if (allTags.length === 0) {
