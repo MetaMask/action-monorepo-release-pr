@@ -40,4 +40,7 @@ jobs:
             - uses: MetaMask/action-monorepo-release-pr@0.0.1
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  release-type: ${{ github.event.inputs.release-type }}
+                  release-version: ${{ github.event.inputs.release-version }}
 ```
