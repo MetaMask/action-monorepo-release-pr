@@ -26,7 +26,7 @@ const PACKAGES: Readonly<Record<string, { name: string; dir: string }>> = {
 
 const RAW_MOCK_TAGS = `${Object.values(TAGS).join('\n')}\n`;
 
-const DEFAULT_TAGS: Readonly<Set<string>> = new Set(Object.values(TAGS));
+const PARSED_MOCK_TAGS: ReadonlySet<string> = new Set(Object.values(TAGS));
 
 const RAW_DIFFS: Readonly<Record<TAGS, string>> = {
   [TAGS.A]: `packages/${PACKAGES.A.dir}/file.txt\npackages/${PACKAGES.B.dir}/file.txt\n`,
@@ -41,7 +41,7 @@ describe('getTags', () => {
       return { stdout: RAW_MOCK_TAGS };
     });
 
-    expect(await getTags()).toStrictEqual([DEFAULT_TAGS, TAGS.C]);
+    expect(await getTags()).toStrictEqual([PARSED_MOCK_TAGS, TAGS.C]);
     expect(execaMock).toHaveBeenCalledTimes(1);
   });
 
@@ -117,7 +117,7 @@ describe('didPackageChange', () => {
     });
 
     expect(
-      await didPackageChange(DEFAULT_TAGS, {
+      await didPackageChange(PARSED_MOCK_TAGS, {
         name: PACKAGES.A.name,
         manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
         dirName: PACKAGES.A.dir,
@@ -129,7 +129,7 @@ describe('didPackageChange', () => {
 
   it('repeat call for tag retrieves result from cache', async () => {
     expect(
-      await didPackageChange(DEFAULT_TAGS, {
+      await didPackageChange(PARSED_MOCK_TAGS, {
         name: PACKAGES.A.name,
         manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
         dirName: PACKAGES.A.dir,
@@ -141,7 +141,7 @@ describe('didPackageChange', () => {
 
   it('retrieves cached diff on repeat call for tag', async () => {
     expect(
-      await didPackageChange(DEFAULT_TAGS, {
+      await didPackageChange(PARSED_MOCK_TAGS, {
         name: PACKAGES.A.name,
         manifest: { name: PACKAGES.A.name, version: VERSIONS.A },
         dirName: PACKAGES.A.dir,
@@ -153,7 +153,7 @@ describe('didPackageChange', () => {
 
   it('throws if package manifest specifies version without tag', async () => {
     await expect(
-      didPackageChange(DEFAULT_TAGS, {
+      didPackageChange(PARSED_MOCK_TAGS, {
         name: PACKAGES.A.name,
         manifest: { name: PACKAGES.A.name, version: '2.0.0' },
         dirName: PACKAGES.A.dir,

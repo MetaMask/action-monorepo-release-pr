@@ -84,7 +84,7 @@ export async function getMetadataForAllPackages(
 export async function getPackagesToUpdate(
   allPackages: Record<string, PackageMetadata>,
   synchronizeVersions: boolean,
-  tags: Readonly<Set<string>>,
+  tags: ReadonlySet<string>,
 ): Promise<Set<string>> {
   // In order to synchronize versions, we must update every package.
   if (synchronizeVersions) {

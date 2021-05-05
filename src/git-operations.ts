@@ -18,7 +18,7 @@ const DIFFS: DiffMap = new Map();
  * The tuple is populated by an empty array and null if there are no tags.
  */
 export async function getTags(): Promise<
-  Readonly<[Set<string>, string | null]>
+  Readonly<[ReadonlySet<string>, string | null]>
 > {
   // The --merged flag ensures that we only get tags that are parents of or
   // equal to the current HEAD.
@@ -87,7 +87,7 @@ async function hasCompleteGitHistory(): Promise<boolean> {
  * returned if there are no releases in the repository's history.
  */
 export async function didPackageChange(
-  tags: Readonly<Set<string>>,
+  tags: ReadonlySet<string>,
   packageData: PackageMetadata,
   packagesDir = 'packages',
 ): Promise<boolean> {
