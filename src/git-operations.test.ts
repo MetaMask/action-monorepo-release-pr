@@ -19,7 +19,9 @@ enum TAGS {
   C = 'v1.1.0',
 }
 
-const PACKAGES: Readonly<Record<string, { name: string; dir: string }>> = {
+type MockPackage = Readonly<{ name: string; dir: string }>;
+
+const PACKAGES: Readonly<Record<string, MockPackage>> = {
   A: { name: 'fooName', dir: 'foo' },
   B: { name: 'barName', dir: 'bar' },
 };
