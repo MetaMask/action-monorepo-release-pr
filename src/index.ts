@@ -7,11 +7,13 @@ import semverDiff from 'semver/functions/diff';
 import type { ReleaseType as SemverReleaseType } from 'semver';
 
 import {
+  FieldNames,
   getMetadataForAllPackages,
   getPackagesToUpdate,
-  updatePackages,
   getPackageManifest,
+  PackageManifest,
   updatePackage,
+  updatePackages,
 } from './package-operations';
 import { getTags } from './git-operations';
 import { getActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
@@ -27,8 +29,14 @@ async function main(): Promise<void> {
   // local git history is incomplete.
   const [tags] = await getTags();
 
-  const rootManifest = await getPackageManifest(WORKSPACE_ROOT, ['version']);
+  const rootManifest = await getPackageManifest(WORKSPACE_ROOT, [
+    FieldNames.Version,
+    FieldNames.Private,
+    FieldNames.Workspaces,
+  ]);
+
   const { version: currentVersion } = rootManifest;
+  const isMonorepo = rootManifest.private === true && rootManifest.workspaces;
 
   // Compute the new version and version diff from the inputs and root manifest
   let newVersion: string, versionDiff: SemverReleaseType;
@@ -43,6 +51,48 @@ async function main(): Promise<void> {
     versionDiff = semverDiff(currentVersion, newVersion) as SemverReleaseType;
   }
 
+  if (isMonorepo) {
+    await updateMonorepo(newVersion, versionDiff, rootManifest, tags);
+  } else {
+    await updatePolyrepo(newVersion, rootManifest);
+  }
+  setActionOutput('NEW_VERSION', newVersion);
+}
+
+/**
+ *
+ * Given that the package is a polyrepo (i.e., a "normal", single-package repo),
+ * updates the package.
+ *
+ * @param newVersion - The package's new version.
+ * @param manifest - The package's parsed package.json file.
+ */
+async function updatePolyrepo(
+  newVersion: string,
+  manifest: Partial<PackageManifest>,
+): Promise<void> {
+  await updatePackage({ dirPath: WORKSPACE_ROOT, manifest }, { newVersion });
+}
+
+/**
+ * Given that the Action is run for a monorepo:
+ *
+ * If the semver diff is "major" or if it's the first release of the monorepo
+ * (inferred from the complete absence of tags), updates all packages.
+ * Otherwise, updates packages that changed since their previous release.
+ *
+ * @param newVersion - The new version of the package(s) to update.
+ * @param versionDiff - A SemVer version diff, e.g. "major" or "prerelease".
+ * @param rootManifest - The parsed root package.json file of the monorepo.
+ * @param tags - All tags reachable from the current git HEAD, as from "git
+ * tag --merged".
+ */
+async function updateMonorepo(
+  newVersion: string,
+  versionDiff: SemverReleaseType,
+  rootManifest: Partial<PackageManifest>,
+  tags: ReadonlySet<string>,
+): Promise<void> {
   // If the version bump is major, we will synchronize the versions of all
   // monorepo packages, meaning the "version" field of their manifests and
   // their version range specified wherever they appear as a dependency.
@@ -62,11 +112,10 @@ async function main(): Promise<void> {
   };
 
   // Finally, bump the version of all packages and the root manifest, and add
-  // the new version an Action output
+  // the new version as an output of this Action
   await updatePackages(allPackages, updateSpecification);
   await updatePackage(
     { dirPath: WORKSPACE_ROOT, manifest: rootManifest },
     updateSpecification,
   );
-  setActionOutput('NEW_VERSION', newVersion);
 }

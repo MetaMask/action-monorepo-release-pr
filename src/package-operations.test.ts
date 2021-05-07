@@ -3,6 +3,7 @@ import cloneDeep from 'lodash.clonedeep';
 import * as gitOps from './git-operations';
 import * as utils from './utils';
 import {
+  FieldNames,
   getMetadataForAllPackages,
   getPackageManifest,
   getPackagesToUpdate,
@@ -79,10 +80,10 @@ describe('package-operations', () => {
         return { ...validManifest };
       });
 
-      expect(await getPackageManifest('fooPath', ['name'])).toStrictEqual(
+      expect(await getPackageManifest('fooPath', [FieldNames.Name])).toStrictEqual(
         validManifest,
       );
-      expect(await getPackageManifest('fooPath', ['version'])).toStrictEqual(
+      expect(await getPackageManifest('fooPath', [FieldNames.Version])).toStrictEqual(
         validManifest,
       );
       expect(await getPackageManifest('fooPath', [])).toStrictEqual(
@@ -113,14 +114,14 @@ describe('package-operations', () => {
 
       await expect(getPackageManifest('fooPath')).rejects.toThrow(/"name"/u);
       await expect(getPackageManifest('fooPath')).rejects.toThrow(/"name"/u);
-      await expect(getPackageManifest('fooPath', ['name'])).rejects.toThrow(
+      await expect(getPackageManifest('fooPath', [FieldNames.Name])).rejects.toThrow(
         /"name"/u,
       );
       await expect(getPackageManifest('fooPath')).rejects.toThrow(/"version"/u);
-      await expect(getPackageManifest('fooPath', ['version'])).rejects.toThrow(
+      await expect(getPackageManifest('fooPath', [FieldNames.Version])).rejects.toThrow(
         /"version"/u,
       );
-      await expect(getPackageManifest('fooPath', ['version'])).rejects.toThrow(
+      await expect(getPackageManifest('fooPath', [FieldNames.Version])).rejects.toThrow(
         /"version"/u,
       );
     });
