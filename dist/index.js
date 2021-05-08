@@ -4533,6 +4533,7 @@ function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
     if (fieldsToValidate.length === 0) {
         return;
     }
+    const _fieldsToValidate = new Set(fieldsToValidate);
     // Just for logging purposes
     const legiblePath = manifestDirPath.split('/').splice(-2).join('/');
     const getErrorMessagePrefix = (fieldName) => {
@@ -4540,20 +4541,20 @@ function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
             ? `"${manifest[FieldNames.Name]}" manifest "${fieldName}"`
             : `"${fieldName}" of manifest in "${legiblePath}"`}`;
     };
-    if (fieldsToValidate.includes(FieldNames.Name) &&
+    if (_fieldsToValidate.has(FieldNames.Name) &&
         !isTruthyString(manifest[FieldNames.Name])) {
         throw new Error(`Manifest in "${legiblePath}" does not have a valid "${FieldNames.Name}" field.`);
     }
-    if (fieldsToValidate.includes(FieldNames.Version) &&
+    if (_fieldsToValidate.has(FieldNames.Version) &&
         !isValidSemver(manifest[FieldNames.Version])) {
         throw new Error(`${getErrorMessagePrefix(FieldNames.Version)} is not a valid SemVer version: ${manifest[FieldNames.Version]}`);
     }
-    if (fieldsToValidate.includes(FieldNames.Private) &&
+    if (_fieldsToValidate.has(FieldNames.Private) &&
         FieldNames.Private in manifest &&
         typeof manifest[FieldNames.Private] !== 'boolean') {
         throw new Error(`${getErrorMessagePrefix(FieldNames.Private)} must be a boolean if present. Received: ${manifest[FieldNames.Private]}`);
     }
-    if (fieldsToValidate.includes(FieldNames.Workspaces) &&
+    if (_fieldsToValidate.has(FieldNames.Workspaces) &&
         FieldNames.Workspaces in manifest &&
         (!Array.isArray(manifest[FieldNames.Workspaces]) ||
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion

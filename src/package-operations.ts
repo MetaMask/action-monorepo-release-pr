@@ -303,6 +303,7 @@ function validatePackageManifest(
   if (fieldsToValidate.length === 0) {
     return;
   }
+  const _fieldsToValidate = new Set(fieldsToValidate);
 
   // Just for logging purposes
   const legiblePath = manifestDirPath.split('/').splice(-2).join('/');
@@ -315,7 +316,7 @@ function validatePackageManifest(
   };
 
   if (
-    fieldsToValidate.includes(FieldNames.Name) &&
+    _fieldsToValidate.has(FieldNames.Name) &&
     !isTruthyString(manifest[FieldNames.Name])
   ) {
     throw new Error(
@@ -324,7 +325,7 @@ function validatePackageManifest(
   }
 
   if (
-    fieldsToValidate.includes(FieldNames.Version) &&
+    _fieldsToValidate.has(FieldNames.Version) &&
     !isValidSemver(manifest[FieldNames.Version])
   ) {
     throw new Error(
@@ -335,7 +336,7 @@ function validatePackageManifest(
   }
 
   if (
-    fieldsToValidate.includes(FieldNames.Private) &&
+    _fieldsToValidate.has(FieldNames.Private) &&
     FieldNames.Private in manifest &&
     typeof manifest[FieldNames.Private] !== 'boolean'
   ) {
@@ -349,7 +350,7 @@ function validatePackageManifest(
   }
 
   if (
-    fieldsToValidate.includes(FieldNames.Workspaces) &&
+    _fieldsToValidate.has(FieldNames.Workspaces) &&
     FieldNames.Workspaces in manifest &&
     (!Array.isArray(manifest[FieldNames.Workspaces]) ||
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
