@@ -15,19 +15,19 @@ jest.mock('./action', () => {
 
 describe('main entry file', () => {
   it('calls main and catches thrown errors', async () => {
-    const mainSpy = jest
+    const mainMock = jest
       .spyOn(actionModule, 'main')
       .mockImplementationOnce(async () => {
         throw new Error('error');
       });
-    const setFailedSpy = jest.spyOn(actionsCore, 'setFailed');
+    const setFailedMock = jest.spyOn(actionsCore, 'setFailed');
 
     import('.');
     await new Promise<void>((resolve) => {
       setImmediate(() => {
-        expect(mainSpy).toHaveBeenCalledTimes(1);
-        expect(setFailedSpy).toHaveBeenCalledTimes(1);
-        expect(setFailedSpy).toHaveBeenCalledWith(new Error('error'));
+        expect(mainMock).toHaveBeenCalledTimes(1);
+        expect(setFailedMock).toHaveBeenCalledTimes(1);
+        expect(setFailedMock).toHaveBeenCalledWith(new Error('error'));
         resolve();
       });
     });
