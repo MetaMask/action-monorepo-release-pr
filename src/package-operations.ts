@@ -47,7 +47,7 @@ interface UpdateSpecification {
 }
 
 interface MonorepoUpdateSpecification extends UpdateSpecification {
-  readonly packagesToUpdate: Set<string>;
+  readonly packagesToUpdate: ReadonlySet<string>;
   readonly synchronizeVersions: boolean;
 }
 
@@ -97,7 +97,7 @@ export async function getPackagesToUpdate(
   allPackages: Record<string, PackageMetadata>,
   synchronizeVersions: boolean,
   tags: ReadonlySet<string>,
-): Promise<Set<string>> {
+): Promise<ReadonlySet<string>> {
   // In order to synchronize versions, we must update every package.
   if (synchronizeVersions) {
     return new Set(Object.keys(allPackages));
@@ -242,7 +242,7 @@ function getUpdatedDependencyFields(
  */
 function getUpdatedDependencyField(
   dependencyObject: Record<string, string>,
-  packagesToUpdate: Set<string>,
+  packagesToUpdate: ReadonlySet<string>,
   newVersion: string,
 ): Record<string, string> {
   const newVersionRange = `^${newVersion}`;
@@ -283,9 +283,10 @@ export async function getPackageManifest<T extends keyof PackageManifest>(
 
 /**
  * Validates a manifest by ensuring that the given fields are properly formatted
- * if present. Fields that are required by the PackageManifest interface must be
+ * if present. Fields that are required by the `PackageManifest` interface must be
  * present if specified.
  *
+ * @see PackageManifest - For fields that must be present if specified.
  * @param manifest - The manifest to validate.
  * @param manifestDirPath - The path to the directory containing the
  * package.json file.
