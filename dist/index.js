@@ -4025,8 +4025,6 @@ var inc_default = /*#__PURE__*/__nccwpck_require__.n(inc);
 // EXTERNAL MODULE: ./node_modules/semver/functions/diff.js
 var diff = __nccwpck_require__(4297);
 var diff_default = /*#__PURE__*/__nccwpck_require__.n(diff);
-// EXTERNAL MODULE: external "fs"
-var external_fs_ = __nccwpck_require__(5747);
 // EXTERNAL MODULE: external "path"
 var external_path_ = __nccwpck_require__(5622);
 var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
@@ -4036,6 +4034,8 @@ var clean_default = /*#__PURE__*/__nccwpck_require__.n(clean);
 // EXTERNAL MODULE: ./node_modules/execa/index.js
 var execa = __nccwpck_require__(5447);
 var execa_default = /*#__PURE__*/__nccwpck_require__.n(execa);
+// EXTERNAL MODULE: external "fs"
+var external_fs_ = __nccwpck_require__(5747);
 // EXTERNAL MODULE: ./node_modules/semver/functions/parse.js
 var parse = __nccwpck_require__(5925);
 var parse_default = /*#__PURE__*/__nccwpck_require__.n(parse);
@@ -4517,9 +4517,10 @@ async function getPackageManifest(containingDirPath, fieldsToValidate) {
 }
 /**
  * Validates a manifest by ensuring that the given fields are properly formatted
- * if present. Fields that are required by the PackageManifest interface must be
+ * if present. Fields that are required by the `PackageManifest` interface must be
  * present if specified.
  *
+ * @see PackageManifest - For fields that must be present if specified.
  * @param manifest - The manifest to validate.
  * @param manifestDirPath - The path to the directory containing the
  * package.json file.
@@ -4561,16 +4562,21 @@ function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
     }
 }
 //# sourceMappingURL=package-operations.js.map
-;// CONCATENATED MODULE: ./lib/index.js
+;// CONCATENATED MODULE: ./lib/action.js
 
 
 
 
 
 
-main().catch((error) => {
-    (0,core.setFailed)(error);
-});
+/**
+ * Action entry function. Gets git tags, reads the work space root package.json,
+ * and updates the package(s) of the repository per the Action inputs.
+ *
+ * @see updateMonorepo - For details on monorepo workflow.
+ * @see updatePolyrepo - For details on polyrepo (i.e. single-package
+ * repository) workflow.
+ */
 async function main() {
     const actionInputs = getActionInputs();
     // Get all git tags. An error is thrown if "git tag" returns no tags and the
@@ -4643,6 +4649,13 @@ async function updateMonorepo(newVersion, versionDiff, rootManifest, tags) {
     await updatePackages(allPackages, updateSpecification);
     await updatePackage({ dirPath: WORKSPACE_ROOT, manifest: rootManifest }, updateSpecification);
 }
+//# sourceMappingURL=action.js.map
+;// CONCATENATED MODULE: ./lib/index.js
+
+
+main().catch((error) => {
+    (0,core.setFailed)(error);
+});
 //# sourceMappingURL=index.js.map
 })();
 
