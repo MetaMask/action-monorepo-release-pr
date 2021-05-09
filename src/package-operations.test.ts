@@ -303,6 +303,8 @@ describe('package-operations', () => {
           newVersion,
           packagesToUpdate: new Set(packageNames),
           synchronizeVersions: false,
+          repositoryUrl: '',
+          shouldUpdateChangelog: false,
         };
 
         await updatePackage(packageMetadata, updateSpecification);
@@ -330,6 +332,8 @@ describe('package-operations', () => {
           newVersion,
           packagesToUpdate: new Set(packageNames),
           synchronizeVersions: false,
+          repositoryUrl: '',
+          shouldUpdateChangelog: false,
         };
 
         await updatePackage(packageMetadata, updateSpecification);
@@ -372,6 +376,8 @@ describe('package-operations', () => {
           newVersion,
           packagesToUpdate: new Set(packageNames),
           synchronizeVersions: true,
+          repositoryUrl: '',
+          shouldUpdateChangelog: false,
         };
 
         await updatePackage(packageMetadata, updateSpecification);
@@ -408,6 +414,8 @@ describe('package-operations', () => {
           newVersion,
           packagesToUpdate: new Set([name1, name2]),
           synchronizeVersions: false,
+          repositoryUrl: '',
+          shouldUpdateChangelog: false,
         };
 
         await updatePackages(allPackages, updateSpecification);
