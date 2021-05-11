@@ -1,6 +1,7 @@
 import { setFailed as setActionToFailed } from '@actions/core';
-import { main } from './action';
+import { performUpdate } from './update';
+import { getActionInputs } from './utils';
 
-main().catch((error) => {
+performUpdate(getActionInputs()).catch((error) => {
   setActionToFailed(error);
 });

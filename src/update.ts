@@ -13,7 +13,7 @@ import {
   updatePackage,
   updatePackages,
 } from './package-operations';
-import { getActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
+import { ActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
 /**
  * Action entry function. Gets git tags, reads the work space root package.json,
@@ -23,9 +23,7 @@ import { getActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
  * @see updatePolyrepo - For details on polyrepo (i.e. single-package
  * repository) workflow.
  */
-export async function main(): Promise<void> {
-  const actionInputs = getActionInputs();
-
+export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
   // Get all git tags. An error is thrown if "git tag" returns no tags and the
   // local git history is incomplete.
   const [tags] = await getTags();

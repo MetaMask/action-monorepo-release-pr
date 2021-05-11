@@ -2,7 +2,7 @@ import * as actionsCore from '@actions/core';
 import * as gitOperations from './git-operations';
 import * as packageOperations from './package-operations';
 import * as utils from './utils';
-import { main } from './action';
+import { performUpdate } from './update';
 
 jest.mock('@actions/core', () => {
   return {
@@ -32,21 +32,18 @@ jest.mock('./utils', () => {
   const actualModule = jest.requireActual('./utils');
   return {
     ...actualModule,
-    getActionInputs: jest.fn(),
     WORKSPACE_ROOT: 'rootDir',
   };
 });
 
-describe('main', () => {
+describe('performUpdate', () => {
   const WORKSPACE_ROOT = 'rootDir';
 
-  let getActionInputsMock: jest.SpyInstance;
   let getTagsMock: jest.SpyInstance;
   let getPackageManifestMock: jest.SpyInstance;
   let setActionOutputMock: jest.SpyInstance;
 
   beforeEach(() => {
-    getActionInputsMock = jest.spyOn(utils, 'getActionInputs');
     getTagsMock = jest
       .spyOn(gitOperations, 'getTags')
       .mockImplementationOnce(async () => [
@@ -65,9 +62,6 @@ describe('main', () => {
     const oldVersion = '1.1.0';
     const newVersion = '2.0.0';
 
-    getActionInputsMock.mockImplementationOnce(() => {
-      return { ReleaseType: null, ReleaseVersion: newVersion };
-    });
     getPackageManifestMock.mockImplementationOnce(async () => {
       return {
         name: packageName,
@@ -75,7 +69,7 @@ describe('main', () => {
       };
     });
 
-    await main();
+    await performUpdate({ ReleaseType: null, ReleaseVersion: newVersion });
     expect(getTagsMock).toHaveBeenCalledTimes(1);
     expect(packageOperations.updatePackage).toHaveBeenCalledTimes(1);
     expect(packageOperations.updatePackage).toHaveBeenCalledWith(
@@ -94,9 +88,6 @@ describe('main', () => {
     const oldVersion = '1.1.0';
     const newVersion = '2.0.0';
 
-    getActionInputsMock.mockImplementationOnce(() => {
-      return { ReleaseType: 'major', ReleaseVersion: null };
-    });
     getPackageManifestMock.mockImplementationOnce(async () => {
       return {
         name: packageName,
@@ -104,7 +95,10 @@ describe('main', () => {
       };
     });
 
-    await main();
+    await performUpdate({
+      ReleaseType: utils.AcceptedSemverReleaseTypes.Major,
+      ReleaseVersion: null,
+    });
     expect(getTagsMock).toHaveBeenCalledTimes(1);
     expect(packageOperations.updatePackage).toHaveBeenCalledTimes(1);
     expect(packageOperations.updatePackage).toHaveBeenCalledWith(
@@ -123,10 +117,6 @@ describe('main', () => {
     const oldVersion = '1.1.0';
     const newVersion = '2.0.0';
     const workspaces: readonly string[] = ['a', 'b', 'c'];
-
-    getActionInputsMock.mockImplementationOnce(() => {
-      return { ReleaseType: null, ReleaseVersion: newVersion };
-    });
 
     getPackageManifestMock.mockImplementationOnce(async () => {
       return {
@@ -147,7 +137,7 @@ describe('main', () => {
       .spyOn(packageOperations, 'getPackagesToUpdate')
       .mockImplementationOnce(async () => new Set(workspaces));
 
-    await main();
+    await performUpdate({ ReleaseType: null, ReleaseVersion: newVersion });
 
     expect(getTagsMock).toHaveBeenCalledTimes(1);
     expect(getPackagesMetadataMock).toHaveBeenCalledTimes(1);

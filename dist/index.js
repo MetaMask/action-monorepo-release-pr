@@ -4576,7 +4576,7 @@ function isMonorepoUpdateSpecification(specification) {
         'synchronizeVersions' in specification);
 }
 //# sourceMappingURL=package-operations.js.map
-;// CONCATENATED MODULE: ./lib/action.js
+;// CONCATENATED MODULE: ./lib/update.js
 
 
 
@@ -4591,8 +4591,7 @@ function isMonorepoUpdateSpecification(specification) {
  * @see updatePolyrepo - For details on polyrepo (i.e. single-package
  * repository) workflow.
  */
-async function main() {
-    const actionInputs = getActionInputs();
+async function performUpdate(actionInputs) {
     // Get all git tags. An error is thrown if "git tag" returns no tags and the
     // local git history is incomplete.
     const [tags] = await getTags();
@@ -4663,11 +4662,12 @@ async function updateMonorepo(newVersion, versionDiff, rootManifest, tags) {
     await updatePackages(allPackages, updateSpecification);
     await updatePackage({ dirPath: WORKSPACE_ROOT, manifest: rootManifest }, updateSpecification);
 }
-//# sourceMappingURL=action.js.map
+//# sourceMappingURL=update.js.map
 ;// CONCATENATED MODULE: ./lib/index.js
 
 
-main().catch((error) => {
+
+performUpdate(getActionInputs()).catch((error) => {
     (0,core.setFailed)(error);
 });
 //# sourceMappingURL=index.js.map
