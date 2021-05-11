@@ -6,7 +6,7 @@ import {
   isMajorSemverDiff,
   isTruthyString,
   isValidSemver,
-  readJsonFile,
+  readJsonObjectFile,
   writeJsonFile,
   tabs,
 } from './utils';
@@ -90,7 +90,7 @@ describe('getActionInputs', () => {
   });
 });
 
-describe('readJsonFile', () => {
+describe('readJsonObjectFile', () => {
   it('reads a JSON file and returns it as an object', async () => {
     const expectedResult = { foo: ['bar', 'baz'] };
     const path = 'arbitrary/path';
@@ -100,7 +100,7 @@ describe('readJsonFile', () => {
       .spyOn(fs.promises, 'readFile')
       .mockImplementationOnce(async () => mockJsonString);
 
-    const result = await readJsonFile(path);
+    const result = await readJsonObjectFile(path);
     expect(result).toStrictEqual(expectedResult);
   });
 
@@ -113,18 +113,25 @@ describe('readJsonFile', () => {
       .spyOn(fs.promises, 'readFile')
       .mockImplementationOnce(async () => mockJsonString);
 
-    await expect(readJsonFile(path)).rejects.toThrow(/^Unexpected token/u);
+    await expect(readJsonObjectFile(path)).rejects.toThrow(
+      /^Unexpected token/u,
+    );
   });
 
   it('throws an error if the file parses to a falsy value', async () => {
     const path = 'arbitrary/path';
-    const mockJsonString = 'null';
 
     jest
       .spyOn(fs.promises, 'readFile')
-      .mockImplementationOnce(async () => mockJsonString);
+      .mockImplementationOnce(async () => 'null')
+      .mockImplementationOnce(async () => '[]')
+      .mockImplementationOnce(async () => 'foobar')
+      .mockImplementationOnce(async () => 'true')
+      .mockImplementationOnce(async () => 'false');
 
-    await expect(readJsonFile(path)).rejects.toThrow(/falsy value\.$/u);
+    await expect(readJsonObjectFile(path)).rejects.toThrow(
+      /non-object value\.$/u,
+    );
   });
 });
 

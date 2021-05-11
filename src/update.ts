@@ -13,6 +13,7 @@ import {
   updatePackage,
   updatePackages,
   validatePackageManifest,
+  ValidatedPackageManifest,
 } from './package-operations';
 import { ActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
@@ -33,12 +34,9 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
 
   const rootManifest = await getPackageManifest(WORKSPACE_ROOT, [
     FieldNames.Version,
-    FieldNames.Private,
-    FieldNames.Workspaces,
   ]);
 
   const { version: currentVersion } = rootManifest;
-  const isMonorepo = rootManifest.private === true && rootManifest.workspaces;
 
   // Compute the new version and version diff from the inputs and root manifest
   let newVersion: string, versionDiff: SemverReleaseType;
@@ -53,19 +51,29 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
     versionDiff = semverDiff(currentVersion, newVersion) as SemverReleaseType;
   }
 
-  if (isMonorepo) {
+  if (FieldNames.Workspaces in rootManifest) {
+    console.log(
+      'Project appears to have workspaces. Applying monorepo workflow.',
+    );
+
     await updateMonorepo(
       newVersion,
       versionDiff,
-      rootManifest,
+      validatePackageManifest(WORKSPACE_ROOT, rootManifest, [
+        FieldNames.Private,
+        FieldNames.Workspaces,
+      ]),
       repositoryUrl,
       tags,
     );
   } else {
-    validatePackageManifest(rootManifest, WORKSPACE_ROOT, [FieldNames.Name]);
+    console.log(
+      'Project does not appear to have any workspaces. Applying polyrepo workflow.',
+    );
+
     await updatePolyrepo(
       newVersion,
-      rootManifest as PackageManifest,
+      validatePackageManifest(WORKSPACE_ROOT, rootManifest, [FieldNames.Name]),
       repositoryUrl,
     );
   }
@@ -110,7 +118,7 @@ async function updateMonorepo(
   newVersion: string,
   versionDiff: SemverReleaseType,
   rootManifest: Pick<
-    PackageManifest,
+    ValidatedPackageManifest,
     FieldNames.Version | FieldNames.Workspaces
   >,
   repositoryUrl: string,

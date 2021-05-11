@@ -7437,16 +7437,17 @@ function validateActionInputs(inputs) {
  * Reads the assumed JSON file at the given path, attempts to parse it, and
  * returns the resulting object.
  *
- * Throws if failing to read or parse, or if the parsed JSON value is falsy.
+ * Throws if failing to read or parse, or if the parsed JSON value is not a
+ * plain object.
  *
  * @param paths - The path segments pointing to the JSON file. Will be passed
  * to path.join().
  * @returns The object corresponding to the parsed JSON file.
  */
-async function readJsonFile(path) {
+async function readJsonObjectFile(path) {
     const obj = JSON.parse(await external_fs_.promises.readFile(path, 'utf8'));
-    if (!obj) {
-        throw new Error(`Assumed JSON file at path "${path}" parsed to a falsy value.`);
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+        throw new Error(`Assumed JSON file at path "${path}" parsed to a non-object value.`);
     }
     return obj;
 }
@@ -7721,7 +7722,10 @@ async function getMetadataForAllPackages(rootDir = WORKSPACE_ROOT, packagesDir =
     await Promise.all(packagesDirContents.map(async (packageDir) => {
         const packagePath = external_path_default().join(packagesPath, packageDir);
         if ((await external_fs_.promises.lstat(packagePath)).isDirectory()) {
-            const manifest = await getPackageManifest(packagePath);
+            const manifest = await getPackageManifest(packagePath, [
+                FieldNames.Name,
+                FieldNames.Version,
+            ]);
             result[manifest.name] = {
                 dirName: packageDir,
                 manifest,
@@ -7900,27 +7904,23 @@ function getUpdatedDependencyField(dependencyObject, packagesToUpdate, newVersio
  * @returns The object corresponding to the parsed package.json file.
  */
 async function getPackageManifest(containingDirPath, fieldsToValidate) {
-    const manifest = await readJsonFile(external_path_default().join(containingDirPath, PACKAGE_JSON));
-    validatePackageManifest(manifest, containingDirPath, fieldsToValidate);
-    return manifest;
+    const manifest = await readJsonObjectFile(external_path_default().join(containingDirPath, PACKAGE_JSON));
+    return validatePackageManifest(containingDirPath, manifest, fieldsToValidate);
 }
 /**
- * Validates a manifest by ensuring that the given fields are properly formatted
- * if present. Fields that are required by the `PackageManifest` interface must be
- * present if specified.
+ * Validates a manifest by ensuring that the given fields are present and
+ * properly formatted.
  *
  * @see PackageManifest - For fields that must be present if specified.
- * @param manifest - The manifest to validate.
  * @param manifestDirPath - The path to the directory containing the
- * package.json file.
+ * manifest file.
+ * @param manifest - The manifest to validate.
  * @param fieldsToValidate - The manifest fields that will be validated.
+ * @returns The unmodified manifest, with validated fields typed correctly.
  */
-function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
-    FieldNames.Name,
-    FieldNames.Version,
-]) {
+function validatePackageManifest(manifestDirPath, manifest, fieldsToValidate) {
     if (fieldsToValidate.length === 0) {
-        return;
+        return manifest;
     }
     const _fieldsToValidate = new Set(fieldsToValidate);
     // Just for logging purposes
@@ -7939,17 +7939,20 @@ function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
         throw new Error(`${getErrorMessagePrefix(FieldNames.Version)} is not a valid SemVer version: ${manifest[FieldNames.Version]}`);
     }
     if (_fieldsToValidate.has(FieldNames.Private) &&
-        FieldNames.Private in manifest &&
         typeof manifest[FieldNames.Private] !== 'boolean') {
         throw new Error(`${getErrorMessagePrefix(FieldNames.Private)} must be a boolean if present. Received: ${manifest[FieldNames.Private]}`);
     }
-    if (_fieldsToValidate.has(FieldNames.Workspaces) &&
-        FieldNames.Workspaces in manifest &&
-        (!Array.isArray(manifest[FieldNames.Workspaces]) ||
+    if (_fieldsToValidate.has(FieldNames.Workspaces)) {
+        if (!Array.isArray(manifest[FieldNames.Workspaces]) ||
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            manifest[FieldNames.Workspaces].length === 0)) {
-        throw new Error(`${getErrorMessagePrefix(FieldNames.Workspaces)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
+            manifest[FieldNames.Workspaces].length === 0) {
+            throw new Error(`${getErrorMessagePrefix(FieldNames.Workspaces)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
+        }
+        if (manifest[FieldNames.Private] !== true) {
+            throw new Error(`${getErrorMessagePrefix(FieldNames.Private)} must be "true" if "${FieldNames.Workspaces}" is present. Received: ${manifest[FieldNames.Private]}`);
+        }
     }
+    return manifest;
 }
 /**
  * Type guard for checking if an update specification is a monorepo update
@@ -8000,11 +8003,8 @@ async function performUpdate(actionInputs) {
     const [tags] = await getTags();
     const rootManifest = await getPackageManifest(WORKSPACE_ROOT, [
         FieldNames.Version,
-        FieldNames.Private,
-        FieldNames.Workspaces,
     ]);
     const { version: currentVersion } = rootManifest;
-    const isMonorepo = rootManifest.private === true && rootManifest.workspaces;
     // Compute the new version and version diff from the inputs and root manifest
     let newVersion, versionDiff;
     if (actionInputs.ReleaseType) {
@@ -8015,12 +8015,16 @@ async function performUpdate(actionInputs) {
         newVersion = actionInputs.ReleaseVersion;
         versionDiff = diff_default()(currentVersion, newVersion);
     }
-    if (isMonorepo) {
-        await updateMonorepo(newVersion, versionDiff, rootManifest, repositoryUrl, tags);
+    if (FieldNames.Workspaces in rootManifest) {
+        console.log('Project appears to have workspaces. Applying monorepo workflow.');
+        await updateMonorepo(newVersion, versionDiff, validatePackageManifest(WORKSPACE_ROOT, rootManifest, [
+            FieldNames.Private,
+            FieldNames.Workspaces,
+        ]), repositoryUrl, tags);
     }
     else {
-        validatePackageManifest(rootManifest, WORKSPACE_ROOT, [FieldNames.Name]);
-        await updatePolyrepo(newVersion, rootManifest, repositoryUrl);
+        console.log('Project does not appear to have any workspaces. Applying polyrepo workflow.');
+        await updatePolyrepo(newVersion, validatePackageManifest(WORKSPACE_ROOT, rootManifest, [FieldNames.Name]), repositoryUrl);
     }
     (0,core.setOutput)('NEW_VERSION', newVersion);
 }

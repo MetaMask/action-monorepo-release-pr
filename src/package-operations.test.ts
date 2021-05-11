@@ -40,7 +40,7 @@ jest.mock('./utils', () => {
   const actualModule = jest.requireActual('./utils');
   return {
     ...actualModule,
-    readJsonFile: jest.fn(),
+    readJsonObjectFile: jest.fn(),
     WORKSPACE_ROOT: 'root',
   };
 });
@@ -68,7 +68,7 @@ describe('package-operations', () => {
     let readJsonFileMock: jest.SpyInstance;
 
     beforeEach(() => {
-      readJsonFileMock = jest.spyOn(utils, 'readJsonFile');
+      readJsonFileMock = jest.spyOn(utils, 'readJsonObjectFile');
     });
 
     it('gets and returns a valid manifest', async () => {
@@ -78,13 +78,18 @@ describe('package-operations', () => {
         return { ...validManifest };
       });
 
-      expect(await getPackageManifest('fooPath')).toStrictEqual(validManifest);
+      expect(
+        await getPackageManifest('fooPath', [
+          FieldNames.Name,
+          FieldNames.Version,
+        ]),
+      ).toStrictEqual(validManifest);
     });
 
     it('gets and returns a valid manifest, with different fields specified', async () => {
       const validManifest: Readonly<Record<string, unknown>> = {
         name: 'fooName',
-        private: false,
+        private: true,
         version: '1.0.0',
         workspaces: ['bar'],
       };
@@ -130,8 +135,12 @@ describe('package-operations', () => {
           return { version: '1.0.0' };
         });
 
-      await expect(getPackageManifest('fooPath')).rejects.toThrow(/"name"/u);
-      await expect(getPackageManifest('fooPath')).rejects.toThrow(/"name"/u);
+      await expect(
+        getPackageManifest('fooPath', [FieldNames.Name, FieldNames.Version]),
+      ).rejects.toThrow(/"name"/u);
+      await expect(
+        getPackageManifest('fooPath', [FieldNames.Name, FieldNames.Version]),
+      ).rejects.toThrow(/"name"/u);
       await expect(
         getPackageManifest('fooPath', [FieldNames.Name]),
       ).rejects.toThrow(/"name"/u);
@@ -147,7 +156,9 @@ describe('package-operations', () => {
           return { version: 'badVersion' };
         });
 
-      await expect(getPackageManifest('fooPath')).rejects.toThrow(/"version"/u);
+      await expect(
+        getPackageManifest('fooPath', [FieldNames.Name, FieldNames.Version]),
+      ).rejects.toThrow(/"version"/u);
       await expect(
         getPackageManifest('fooPath', [FieldNames.Version]),
       ).rejects.toThrow(/"version"/u);
@@ -177,6 +188,21 @@ describe('package-operations', () => {
       await expect(
         getPackageManifest('fooPath', [FieldNames.Workspaces]),
       ).rejects.toThrow(/"workspaces"/u);
+
+      readJsonFileMock
+        .mockImplementationOnce(async () => {
+          return { workspaces: ['a'] };
+        })
+        .mockImplementationOnce(async () => {
+          return { workspaces: ['a'], private: false };
+        });
+
+      await expect(
+        getPackageManifest('fooPath', [FieldNames.Workspaces]),
+      ).rejects.toThrow(/"private" .* must be "true" .*"workspaces"/u);
+      await expect(
+        getPackageManifest('fooPath', [FieldNames.Workspaces]),
+      ).rejects.toThrow(/"private" .* must be "true" .*"workspaces"/u);
     });
   });
 
@@ -217,7 +243,7 @@ describe('package-operations', () => {
       }) as any);
 
       jest
-        .spyOn(utils, 'readJsonFile')
+        .spyOn(utils, 'readJsonObjectFile')
         .mockImplementation(getMockReadJsonFile());
     });
 

@@ -6,7 +6,7 @@ import { didPackageChange } from './git-operations';
 import {
   isTruthyString,
   isValidSemver,
-  readJsonFile,
+  readJsonObjectFile,
   WORKSPACE_ROOT,
   writeJsonFile,
 } from './utils';
@@ -34,6 +34,11 @@ export interface PackageManifest
   readonly [FieldNames.Private]?: boolean;
   readonly [FieldNames.Version]: string;
   readonly [FieldNames.Workspaces]?: string[];
+}
+
+export interface ValidatedPackageManifest extends PackageManifest {
+  readonly [FieldNames.Private]: boolean;
+  readonly [FieldNames.Workspaces]: string[];
 }
 
 export interface PackageMetadata {
@@ -76,7 +81,10 @@ export async function getMetadataForAllPackages(
       const packagePath = pathUtils.join(packagesPath, packageDir);
 
       if ((await fs.lstat(packagePath)).isDirectory()) {
-        const manifest = await getPackageManifest(packagePath);
+        const manifest = await getPackageManifest(packagePath, [
+          FieldNames.Name,
+          FieldNames.Version,
+        ]);
         result[manifest.name] = {
           dirName: packageDir,
           manifest,
@@ -313,41 +321,42 @@ function getUpdatedDependencyField(
  * @param fieldsToValidate - The manifest fields that will be validated.
  * @returns The object corresponding to the parsed package.json file.
  */
-export async function getPackageManifest<T extends keyof PackageManifest>(
+export async function getPackageManifest<T extends FieldNames>(
   containingDirPath: string,
-  fieldsToValidate?: T[],
-): Promise<Pick<PackageManifest, T>> {
-  const manifest = await readJsonFile(
+  fieldsToValidate: T[],
+): Promise<Pick<PackageManifest, T> & Partial<PackageManifest>> {
+  const manifest: Partial<PackageManifest> = await readJsonObjectFile(
     pathUtils.join(containingDirPath, PACKAGE_JSON),
   );
 
-  validatePackageManifest(manifest, containingDirPath, fieldsToValidate);
-  return manifest as Pick<PackageManifest, T>;
+  return validatePackageManifest(containingDirPath, manifest, fieldsToValidate);
 }
 
 /**
- * Validates a manifest by ensuring that the given fields are properly formatted
- * if present. Fields that are required by the `PackageManifest` interface must be
- * present if specified.
+ * Validates a manifest by ensuring that the given fields are present and
+ * properly formatted.
  *
  * @see PackageManifest - For fields that must be present if specified.
- * @param manifest - The manifest to validate.
  * @param manifestDirPath - The path to the directory containing the
- * package.json file.
+ * manifest file.
+ * @param manifest - The manifest to validate.
  * @param fieldsToValidate - The manifest fields that will be validated.
+ * @returns The unmodified manifest, with validated fields typed correctly.
  */
-export function validatePackageManifest(
-  manifest: Partial<PackageManifest>,
+export function validatePackageManifest<
+  T extends Partial<PackageManifest>,
+  U extends FieldNames
+>(
   manifestDirPath: string,
-  fieldsToValidate: (keyof PackageManifest)[] = [
-    FieldNames.Name,
-    FieldNames.Version,
-  ],
-): void {
+  manifest: T,
+  fieldsToValidate: U[],
+): T & Pick<ValidatedPackageManifest, U> {
   if (fieldsToValidate.length === 0) {
-    return;
+    return manifest as T & Pick<ValidatedPackageManifest, U>;
   }
-  const _fieldsToValidate = new Set(fieldsToValidate);
+  const _fieldsToValidate: Set<keyof PackageManifest> = new Set(
+    fieldsToValidate,
+  );
 
   // Just for logging purposes
   const legiblePath = getTruncatedPath(manifestDirPath);
@@ -381,7 +390,6 @@ export function validatePackageManifest(
 
   if (
     _fieldsToValidate.has(FieldNames.Private) &&
-    FieldNames.Private in manifest &&
     typeof manifest[FieldNames.Private] !== 'boolean'
   ) {
     throw new Error(
@@ -393,21 +401,30 @@ export function validatePackageManifest(
     );
   }
 
-  if (
-    _fieldsToValidate.has(FieldNames.Workspaces) &&
-    FieldNames.Workspaces in manifest &&
-    (!Array.isArray(manifest[FieldNames.Workspaces]) ||
+  if (_fieldsToValidate.has(FieldNames.Workspaces)) {
+    if (
+      !Array.isArray(manifest[FieldNames.Workspaces]) ||
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      manifest[FieldNames.Workspaces]!.length === 0)
-  ) {
-    throw new Error(
-      `${getErrorMessagePrefix(
-        FieldNames.Workspaces,
-      )} must be a non-empty array if present. Received: ${
-        manifest[FieldNames.Workspaces]
-      }`,
-    );
+      manifest[FieldNames.Workspaces]!.length === 0
+    ) {
+      throw new Error(
+        `${getErrorMessagePrefix(
+          FieldNames.Workspaces,
+        )} must be a non-empty array if present. Received: ${
+          manifest[FieldNames.Workspaces]
+        }`,
+      );
+    }
+
+    if (manifest[FieldNames.Private] !== true) {
+      throw new Error(
+        `${getErrorMessagePrefix(FieldNames.Private)} must be "true" if "${
+          FieldNames.Workspaces
+        }" is present. Received: ${manifest[FieldNames.Private]}`,
+      );
+    }
   }
+  return manifest as T & Pick<ValidatedPackageManifest, U>;
 }
 
 /**
