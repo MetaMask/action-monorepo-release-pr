@@ -4449,8 +4449,9 @@ async function updatePackage(packageMetadata, updateSpecification) {
  * @returns The updated manifest.
  */
 function getUpdatedManifest(currentManifest, updateSpecification) {
-    const { newVersion, synchronizeVersions } = updateSpecification;
-    if (synchronizeVersions) {
+    const { newVersion } = updateSpecification;
+    if (isMonorepoUpdateSpecification(updateSpecification) &&
+        updateSpecification.synchronizeVersions) {
         // If we're synchronizing the versions of our updated packages, we also
         // synchronize their versions whenever they appear as a dependency.
         return {
@@ -4561,6 +4562,18 @@ function validatePackageManifest(manifest, manifestDirPath, fieldsToValidate = [
             manifest[FieldNames.Workspaces].length === 0)) {
         throw new Error(`${getErrorMessagePrefix(FieldNames.Workspaces)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
     }
+}
+/**
+ * Type guard for checking if an update specification is a monorepo update
+ * specification.
+ *
+ * @param specification - The update specification object to check.
+ * @returns Whether the given specification object is a monorepo update
+ * specification.
+ */
+function isMonorepoUpdateSpecification(specification) {
+    return ('packagesToUpdate' in specification &&
+        'synchronizeVersions' in specification);
 }
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/action.js
