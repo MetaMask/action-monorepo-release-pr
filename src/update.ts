@@ -109,7 +109,10 @@ async function updatePolyrepo(
 async function updateMonorepo(
   newVersion: string,
   versionDiff: SemverReleaseType,
-  rootManifest: Partial<PackageManifest>,
+  rootManifest: Pick<
+    PackageManifest,
+    FieldNames.Version | FieldNames.Workspaces
+  >,
   repositoryUrl: string,
   tags: ReadonlySet<string>,
 ): Promise<void> {
