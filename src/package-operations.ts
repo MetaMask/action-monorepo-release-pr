@@ -431,6 +431,7 @@ function isMonorepoUpdateSpecification(
  * Given a path string, returns the last two segments of the path, without
  * leading or trailing slashes.
  *
+ * @param absolutePath - The absolute path to truncate.
  * @returns The truncated path string.
  */
 function getTruncatedPath(absolutePath: string): string {
