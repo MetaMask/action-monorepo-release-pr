@@ -7808,7 +7808,7 @@ async function updatePackageChangelog(packageMetadata, updateSpecification) {
     const { dirPath: projectRootDirectory } = packageMetadata;
     const { newVersion, repositoryUrl } = updateSpecification;
     let changelogContent;
-    const changelogPath = `${projectRootDirectory}/CHANGELOG.md`;
+    const changelogPath = external_path_default().join(projectRootDirectory, 'CHANGELOG.md');
     try {
         changelogContent = await external_fs_.promises.readFile(changelogPath, 'utf-8');
     }

@@ -191,7 +191,7 @@ async function updatePackageChangelog(
   const { newVersion, repositoryUrl } = updateSpecification;
 
   let changelogContent: string;
-  const changelogPath = `${projectRootDirectory}/CHANGELOG.md`;
+  const changelogPath = pathUtils.join(projectRootDirectory, 'CHANGELOG.md');
   try {
     changelogContent = await fs.readFile(changelogPath, 'utf-8');
   } catch (error) {
