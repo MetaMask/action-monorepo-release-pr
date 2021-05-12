@@ -436,8 +436,8 @@ function isMonorepoUpdateSpecification(
  */
 function getTruncatedPath(absolutePath: string): string {
   return absolutePath
-    .split('/')
+    .split(pathUtils.sep)
     .filter((segment) => Boolean(segment))
     .splice(-2)
-    .join('/');
+    .join(pathUtils.sep);
 }

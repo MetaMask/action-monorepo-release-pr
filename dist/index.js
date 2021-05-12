@@ -7972,10 +7972,10 @@ function isMonorepoUpdateSpecification(specification) {
  */
 function getTruncatedPath(absolutePath) {
     return absolutePath
-        .split('/')
+        .split((external_path_default()).sep)
         .filter((segment) => Boolean(segment))
         .splice(-2)
-        .join('/');
+        .join((external_path_default()).sep);
 }
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/update.js
