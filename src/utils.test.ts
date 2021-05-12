@@ -120,18 +120,15 @@ describe('readJsonObjectFile', () => {
 
   it('throws an error if the file parses to a falsy value', async () => {
     const path = 'arbitrary/path';
+    const readFileMock = jest.spyOn(fs.promises, 'readFile');
+    const badJsonValues = ['null', '[]', '"foobar"', 'true', 'false', '2'];
 
-    jest
-      .spyOn(fs.promises, 'readFile')
-      .mockImplementationOnce(async () => 'null')
-      .mockImplementationOnce(async () => '[]')
-      .mockImplementationOnce(async () => 'foobar')
-      .mockImplementationOnce(async () => 'true')
-      .mockImplementationOnce(async () => 'false');
-
-    await expect(readJsonObjectFile(path)).rejects.toThrow(
-      /non-object value\.$/u,
-    );
+    for (const badValue of badJsonValues) {
+      readFileMock.mockImplementationOnce(async () => badValue);
+      await expect(readJsonObjectFile(path)).rejects.toThrow(
+        /non-object value\.$/u,
+      );
+    }
   });
 });
 
