@@ -12,8 +12,10 @@ import {
   PackageManifest,
   updatePackage,
   updatePackages,
-  validatePackageManifest,
-  ValidatedPackageManifest,
+  MonorepoPackageManifest,
+  validateMonorepoPackageManifest,
+  validatePackageManifestVersion,
+  validatePackageManifestName,
 } from './package-operations';
 import { ActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
@@ -32,9 +34,11 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
   // local git history is incomplete.
   const [tags] = await getTags();
 
-  const rootManifest = await getPackageManifest(WORKSPACE_ROOT, [
-    FieldNames.Version,
-  ]);
+  const rawRootManifest = await getPackageManifest(WORKSPACE_ROOT);
+  const rootManifest = validatePackageManifestVersion(
+    rawRootManifest,
+    WORKSPACE_ROOT,
+  );
 
   const { version: currentVersion } = rootManifest;
 
@@ -59,10 +63,7 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
     await updateMonorepo(
       newVersion,
       versionDiff,
-      validatePackageManifest(WORKSPACE_ROOT, rootManifest, [
-        FieldNames.Private,
-        FieldNames.Workspaces,
-      ]),
+      validateMonorepoPackageManifest(rootManifest, WORKSPACE_ROOT),
       repositoryUrl,
       tags,
     );
@@ -73,7 +74,7 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
 
     await updatePolyrepo(
       newVersion,
-      validatePackageManifest(WORKSPACE_ROOT, rootManifest, [FieldNames.Name]),
+      validatePackageManifestName(rootManifest, WORKSPACE_ROOT),
       repositoryUrl,
     );
   }
@@ -118,7 +119,7 @@ async function updateMonorepo(
   newVersion: string,
   versionDiff: SemverReleaseType,
   rootManifest: Pick<
-    ValidatedPackageManifest,
+    MonorepoPackageManifest,
     FieldNames.Version | FieldNames.Workspaces
   >,
   repositoryUrl: string,

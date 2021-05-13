@@ -118,7 +118,7 @@ describe('readJsonObjectFile', () => {
     );
   });
 
-  it('throws an error if the file parses to a falsy value', async () => {
+  it('throws an error if the file parses to a non-object value', async () => {
     const path = 'arbitrary/path';
     const readFileMock = jest.spyOn(fs.promises, 'readFile');
     const badJsonValues = ['null', '[]', '"foobar"', 'true', 'false', '2'];

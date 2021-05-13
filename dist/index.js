@@ -7722,10 +7722,8 @@ async function getMetadataForAllPackages(rootDir = WORKSPACE_ROOT, packagesDir =
     await Promise.all(packagesDirContents.map(async (packageDir) => {
         const packagePath = external_path_default().join(packagesPath, packageDir);
         if ((await external_fs_.promises.lstat(packagePath)).isDirectory()) {
-            const manifest = await getPackageManifest(packagePath, [
-                FieldNames.Name,
-                FieldNames.Version,
-            ]);
+            const rawManifest = await getPackageManifest(packagePath);
+            const manifest = validatePolyrepoPackageManifest(rawManifest, packagePath);
             result[manifest.name] = {
                 dirName: packageDir,
                 manifest,
@@ -7903,54 +7901,72 @@ function getUpdatedDependencyField(dependencyObject, packagesToUpdate, newVersio
  * @param fieldsToValidate - The manifest fields that will be validated.
  * @returns The object corresponding to the parsed package.json file.
  */
-async function getPackageManifest(containingDirPath, fieldsToValidate) {
-    const manifest = await readJsonObjectFile(external_path_default().join(containingDirPath, PACKAGE_JSON));
-    return validatePackageManifest(containingDirPath, manifest, fieldsToValidate);
+async function getPackageManifest(containingDirPath) {
+    return await readJsonObjectFile(external_path_default().join(containingDirPath, PACKAGE_JSON));
 }
 /**
- * Validates a manifest by ensuring that the given fields are present and
- * properly formatted.
+ * Validates the "version" field of a package manifest object, i.e. a parsed
+ * "package.json" file.
  *
- * @see PackageManifest - For fields that must be present if specified.
+ * @param manifest - The manifest to validate.
  * @param manifestDirPath - The path to the directory containing the
  * manifest file.
- * @param manifest - The manifest to validate.
- * @param fieldsToValidate - The manifest fields that will be validated.
- * @returns The unmodified manifest, with validated fields typed correctly.
+ * @returns The unmodified manifest, with the "version" field typed correctly.
  */
-function validatePackageManifest(manifestDirPath, manifest, fieldsToValidate) {
-    if (fieldsToValidate.length === 0) {
-        return manifest;
+function validatePackageManifestVersion(manifest, manifestDirPath) {
+    if (!isValidSemver(manifest[FieldNames.Version])) {
+        throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Version, manifest, manifestDirPath)} is not a valid SemVer version: ${manifest[FieldNames.Version]}`);
     }
-    const _fieldsToValidate = new Set(fieldsToValidate);
-    // Just for logging purposes
-    const legiblePath = getTruncatedPath(manifestDirPath);
-    const getErrorMessagePrefix = (fieldName) => {
-        return `${manifest[FieldNames.Name]
-            ? `"${manifest[FieldNames.Name]}" manifest "${fieldName}"`
-            : `"${fieldName}" of manifest in "${legiblePath}"`}`;
-    };
-    if (_fieldsToValidate.has(FieldNames.Name) &&
-        !isTruthyString(manifest[FieldNames.Name])) {
-        throw new Error(`Manifest in "${legiblePath}" does not have a valid "${FieldNames.Name}" field.`);
+    return manifest;
+}
+/**
+ * Validates the "name" field of a package manifest object, i.e. a parsed
+ * "package.json" file.
+ *
+ * @param manifest - The manifest to validate.
+ * @param manifestDirPath - The path to the directory containing the
+ * manifest file.
+ * @returns The unmodified manifest, with the "name" field typed correctly.
+ */
+function validatePackageManifestName(manifest, manifestDirPath) {
+    if (!isTruthyString(manifest[FieldNames.Name])) {
+        throw new Error(`Manifest in "${getTruncatedPath(manifestDirPath)}" does not have a valid "${FieldNames.Name}" field.`);
     }
-    if (_fieldsToValidate.has(FieldNames.Version) &&
-        !isValidSemver(manifest[FieldNames.Version])) {
-        throw new Error(`${getErrorMessagePrefix(FieldNames.Version)} is not a valid SemVer version: ${manifest[FieldNames.Version]}`);
+    return manifest;
+}
+/**
+ * Validates the "version" and "name" fields of a package manifest object,
+ * i.e. a parsed "package.json" file.
+ *
+ * @param manifest - The manifest to validate.
+ * @param manifestDirPath - The path to the directory containing the
+ * manifest file.
+ * @returns The unmodified manifest, with the "version" and "name" fields typed
+ * correctly.
+ */
+function validatePolyrepoPackageManifest(manifest, manifestDirPath) {
+    return validatePackageManifestName(validatePackageManifestVersion(manifest, manifestDirPath), manifestDirPath);
+}
+/**
+ * Validates the "workspaces" and "private" fields of a package manifest object,
+ * i.e. a parsed "package.json" file.
+ *
+ * Assumes that the manifest's "version" field is already validated.
+ *
+ * @param manifest - The manifest to validate.
+ * @param manifestDirPath - The path to the directory containing the
+ * manifest file.
+ * @returns The unmodified manifest, with the "workspaces" and "private" fields
+ * typed correctly.
+ */
+function validateMonorepoPackageManifest(manifest, manifestDirPath) {
+    if (!Array.isArray(manifest[FieldNames.Workspaces]) ||
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        manifest[FieldNames.Workspaces].length === 0) {
+        throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Workspaces, manifest, manifestDirPath)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
     }
-    if (_fieldsToValidate.has(FieldNames.Private) &&
-        typeof manifest[FieldNames.Private] !== 'boolean') {
-        throw new Error(`${getErrorMessagePrefix(FieldNames.Private)} must be a boolean if present. Received: ${manifest[FieldNames.Private]}`);
-    }
-    if (_fieldsToValidate.has(FieldNames.Workspaces)) {
-        if (!Array.isArray(manifest[FieldNames.Workspaces]) ||
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            manifest[FieldNames.Workspaces].length === 0) {
-            throw new Error(`${getErrorMessagePrefix(FieldNames.Workspaces)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
-        }
-        if (manifest[FieldNames.Private] !== true) {
-            throw new Error(`${getErrorMessagePrefix(FieldNames.Private)} must be "true" if "${FieldNames.Workspaces}" is present. Received: ${manifest[FieldNames.Private]}`);
-        }
+    if (manifest[FieldNames.Private] !== true) {
+        throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Private, manifest, manifestDirPath)} must be "true" if "${FieldNames.Workspaces}" is present. Received: ${manifest[FieldNames.Private]}`);
     }
     return manifest;
 }
@@ -7980,6 +7996,20 @@ function getTruncatedPath(absolutePath) {
         .splice(-2)
         .join((external_path_default()).sep);
 }
+/**
+ * Gets the prefix of an error message for a manifest file validation error.
+ *
+ * @param invalidField - The name of the invalid field.
+ * @param manifest - The manifest object that's invalid.
+ * @param manifestDirPath - The path to the directory of the manifest file.
+ * @returns The prefix of a manifest validation error message.
+ */
+function getManifestErrorMessagePrefix(invalidField, manifest, manifestDirPath) {
+    const legiblePath = getTruncatedPath(manifestDirPath);
+    return `${manifest[FieldNames.Name]
+        ? `"${manifest[FieldNames.Name]}" manifest "${invalidField}"`
+        : `"${invalidField}" of manifest in "${legiblePath}"`}`;
+}
 //# sourceMappingURL=package-operations.js.map
 ;// CONCATENATED MODULE: ./lib/update.js
 
@@ -8001,9 +8031,8 @@ async function performUpdate(actionInputs) {
     // Get all git tags. An error is thrown if "git tag" returns no tags and the
     // local git history is incomplete.
     const [tags] = await getTags();
-    const rootManifest = await getPackageManifest(WORKSPACE_ROOT, [
-        FieldNames.Version,
-    ]);
+    const rawRootManifest = await getPackageManifest(WORKSPACE_ROOT);
+    const rootManifest = validatePackageManifestVersion(rawRootManifest, WORKSPACE_ROOT);
     const { version: currentVersion } = rootManifest;
     // Compute the new version and version diff from the inputs and root manifest
     let newVersion, versionDiff;
@@ -8017,14 +8046,11 @@ async function performUpdate(actionInputs) {
     }
     if (FieldNames.Workspaces in rootManifest) {
         console.log('Project appears to have workspaces. Applying monorepo workflow.');
-        await updateMonorepo(newVersion, versionDiff, validatePackageManifest(WORKSPACE_ROOT, rootManifest, [
-            FieldNames.Private,
-            FieldNames.Workspaces,
-        ]), repositoryUrl, tags);
+        await updateMonorepo(newVersion, versionDiff, validateMonorepoPackageManifest(rootManifest, WORKSPACE_ROOT), repositoryUrl, tags);
     }
     else {
         console.log('Project does not appear to have any workspaces. Applying polyrepo workflow.');
-        await updatePolyrepo(newVersion, validatePackageManifest(WORKSPACE_ROOT, rootManifest, [FieldNames.Name]), repositoryUrl);
+        await updatePolyrepo(newVersion, validatePackageManifestName(rootManifest, WORKSPACE_ROOT), repositoryUrl);
     }
     (0,core.setOutput)('NEW_VERSION', newVersion);
 }
