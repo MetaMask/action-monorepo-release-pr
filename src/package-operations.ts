@@ -31,10 +31,19 @@ export enum FieldNames {
 export interface PackageManifest
   extends Partial<Record<PackageDependencyFields, Record<string, string>>> {
   readonly [FieldNames.Name]: string;
+  readonly [FieldNames.Private]?: boolean;
+  readonly [FieldNames.Version]: string;
+  readonly [FieldNames.Workspaces]?: string[];
+}
+
+export interface PolyrepoPackageManifest
+  extends Partial<Record<PackageDependencyFields, Record<string, string>>> {
+  readonly [FieldNames.Name]: string;
   readonly [FieldNames.Version]: string;
 }
 
-export interface MonorepoPackageManifest extends PackageManifest {
+export interface MonorepoPackageManifest extends Partial<PackageManifest> {
+  readonly [FieldNames.Version]: string;
   readonly [FieldNames.Private]: boolean;
   readonly [FieldNames.Workspaces]: string[];
 }
@@ -317,7 +326,6 @@ function getUpdatedDependencyField(
  *
  * @param containingDirPath - The path to the directory containing the
  * package.json file.
- * @param fieldsToValidate - The manifest fields that will be validated.
  * @returns The object corresponding to the parsed package.json file.
  */
 export async function getPackageManifest(
@@ -325,6 +333,60 @@ export async function getPackageManifest(
 ): Promise<Record<string, unknown>> {
   return await readJsonObjectFile(
     pathUtils.join(containingDirPath, PACKAGE_JSON),
+  );
+}
+
+/**
+ * Type guard to ensure that the given manifest has a valid "name" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "name" field.
+ */
+function hasValidNameField(
+  manifest: Partial<PackageManifest>,
+): manifest is typeof manifest & Pick<PackageManifest, FieldNames.Name> {
+  return isTruthyString(manifest[FieldNames.Name]);
+}
+
+/**
+ * Type guard to ensure that the given manifest has a valid "private" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "private" field.
+ */
+function hasValidPrivateField(
+  manifest: Partial<PackageManifest>,
+): manifest is typeof manifest &
+  Pick<MonorepoPackageManifest, FieldNames.Private> {
+  return manifest[FieldNames.Private] === true;
+}
+
+/**
+ * Type guard to ensure that the given manifest has a valid "version" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "version" field.
+ */
+function hasValidVersionField(
+  manifest: Partial<PackageManifest>,
+): manifest is typeof manifest & Pick<PackageManifest, FieldNames.Version> {
+  return isValidSemver(manifest[FieldNames.Version]);
+}
+
+/**
+ * Type guard to ensure that the given manifest has a valid "worksapces" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "worksapces" field.
+ */
+function hasValidWorkspacesField(
+  manifest: Partial<PackageManifest>,
+): manifest is typeof manifest &
+  Pick<MonorepoPackageManifest, FieldNames.Workspaces> {
+  return (
+    Array.isArray(manifest[FieldNames.Workspaces]) &&
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    manifest[FieldNames.Workspaces]!.length > 0
   );
 }
 
@@ -338,12 +400,12 @@ export async function getPackageManifest(
  * @returns The unmodified manifest, with the "version" field typed correctly.
  */
 export function validatePackageManifestVersion<
-  T extends Partial<PackageManifest>
+  ManifestType extends Partial<PackageManifest>
 >(
-  manifest: T,
+  manifest: ManifestType,
   manifestDirPath: string,
-): T & Pick<PackageManifest, FieldNames.Version> {
-  if (!isValidSemver(manifest[FieldNames.Version])) {
+): ManifestType & Pick<PackageManifest, FieldNames.Version> {
+  if (!hasValidVersionField(manifest)) {
     throw new Error(
       `${getManifestErrorMessagePrefix(
         FieldNames.Version,
@@ -352,8 +414,7 @@ export function validatePackageManifestVersion<
       )} is not a valid SemVer version: ${manifest[FieldNames.Version]}`,
     );
   }
-
-  return manifest as T & Pick<PackageManifest, FieldNames.Version>;
+  return manifest;
 }
 
 /**
@@ -365,19 +426,20 @@ export function validatePackageManifestVersion<
  * manifest file.
  * @returns The unmodified manifest, with the "name" field typed correctly.
  */
-export function validatePackageManifestName<T extends Partial<PackageManifest>>(
-  manifest: T,
+export function validatePackageManifestName<
+  ManifestType extends Partial<PackageManifest>
+>(
+  manifest: ManifestType,
   manifestDirPath: string,
-): T & Pick<PackageManifest, FieldNames.Name> {
-  if (!isTruthyString(manifest[FieldNames.Name])) {
+): ManifestType & Pick<PackageManifest, FieldNames.Name> {
+  if (!hasValidNameField(manifest)) {
     throw new Error(
       `Manifest in "${getTruncatedPath(
         manifestDirPath,
       )}" does not have a valid "${FieldNames.Name}" field.`,
     );
   }
-
-  return manifest as T & Pick<PackageManifest, FieldNames.Name>;
+  return manifest;
 }
 
 /**
@@ -393,7 +455,7 @@ export function validatePackageManifestName<T extends Partial<PackageManifest>>(
 export function validatePolyrepoPackageManifest(
   manifest: Partial<PackageManifest>,
   manifestDirPath: string,
-): PackageManifest {
+): PolyrepoPackageManifest {
   return validatePackageManifestName(
     validatePackageManifestVersion(manifest, manifestDirPath),
     manifestDirPath,
@@ -413,16 +475,10 @@ export function validatePolyrepoPackageManifest(
  * typed correctly.
  */
 export function validateMonorepoPackageManifest<
-  T extends Pick<PackageManifest, FieldNames.Version>
->(
-  manifest: T & Partial<MonorepoPackageManifest>,
-  manifestDirPath: string,
-): MonorepoPackageManifest {
-  if (
-    !Array.isArray(manifest[FieldNames.Workspaces]) ||
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    manifest[FieldNames.Workspaces]!.length === 0
-  ) {
+  ManifestType extends Pick<PackageManifest, FieldNames.Version> &
+    Partial<PackageManifest>
+>(manifest: ManifestType, manifestDirPath: string): MonorepoPackageManifest {
+  if (!hasValidWorkspacesField(manifest)) {
     throw new Error(
       `${getManifestErrorMessagePrefix(
         FieldNames.Workspaces,
@@ -434,7 +490,7 @@ export function validateMonorepoPackageManifest<
     );
   }
 
-  if (manifest[FieldNames.Private] !== true) {
+  if (!hasValidPrivateField(manifest)) {
     throw new Error(
       `${getManifestErrorMessagePrefix(
         FieldNames.Private,
@@ -445,7 +501,7 @@ export function validateMonorepoPackageManifest<
       }`,
     );
   }
-  return manifest as MonorepoPackageManifest;
+  return manifest;
 }
 
 /**

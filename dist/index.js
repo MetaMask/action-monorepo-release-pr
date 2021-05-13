@@ -7898,11 +7898,48 @@ function getUpdatedDependencyField(dependencyObject, packagesToUpdate, newVersio
  *
  * @param containingDirPath - The path to the directory containing the
  * package.json file.
- * @param fieldsToValidate - The manifest fields that will be validated.
  * @returns The object corresponding to the parsed package.json file.
  */
 async function getPackageManifest(containingDirPath) {
     return await readJsonObjectFile(external_path_default().join(containingDirPath, PACKAGE_JSON));
+}
+/**
+ * Type guard to ensure that the given manifest has a valid "name" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "name" field.
+ */
+function hasValidNameField(manifest) {
+    return isTruthyString(manifest[FieldNames.Name]);
+}
+/**
+ * Type guard to ensure that the given manifest has a valid "private" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "private" field.
+ */
+function hasValidPrivateField(manifest) {
+    return manifest[FieldNames.Private] === true;
+}
+/**
+ * Type guard to ensure that the given manifest has a valid "version" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "version" field.
+ */
+function hasValidVersionField(manifest) {
+    return isValidSemver(manifest[FieldNames.Version]);
+}
+/**
+ * Type guard to ensure that the given manifest has a valid "worksapces" field.
+ *
+ * @param manifest - The manifest object to validate.
+ * @returns Whether the manifest has a valid "worksapces" field.
+ */
+function hasValidWorkspacesField(manifest) {
+    return (Array.isArray(manifest[FieldNames.Workspaces]) &&
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        manifest[FieldNames.Workspaces].length > 0);
 }
 /**
  * Validates the "version" field of a package manifest object, i.e. a parsed
@@ -7914,7 +7951,7 @@ async function getPackageManifest(containingDirPath) {
  * @returns The unmodified manifest, with the "version" field typed correctly.
  */
 function validatePackageManifestVersion(manifest, manifestDirPath) {
-    if (!isValidSemver(manifest[FieldNames.Version])) {
+    if (!hasValidVersionField(manifest)) {
         throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Version, manifest, manifestDirPath)} is not a valid SemVer version: ${manifest[FieldNames.Version]}`);
     }
     return manifest;
@@ -7929,7 +7966,7 @@ function validatePackageManifestVersion(manifest, manifestDirPath) {
  * @returns The unmodified manifest, with the "name" field typed correctly.
  */
 function validatePackageManifestName(manifest, manifestDirPath) {
-    if (!isTruthyString(manifest[FieldNames.Name])) {
+    if (!hasValidNameField(manifest)) {
         throw new Error(`Manifest in "${getTruncatedPath(manifestDirPath)}" does not have a valid "${FieldNames.Name}" field.`);
     }
     return manifest;
@@ -7960,12 +7997,10 @@ function validatePolyrepoPackageManifest(manifest, manifestDirPath) {
  * typed correctly.
  */
 function validateMonorepoPackageManifest(manifest, manifestDirPath) {
-    if (!Array.isArray(manifest[FieldNames.Workspaces]) ||
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        manifest[FieldNames.Workspaces].length === 0) {
+    if (!hasValidWorkspacesField(manifest)) {
         throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Workspaces, manifest, manifestDirPath)} must be a non-empty array if present. Received: ${manifest[FieldNames.Workspaces]}`);
     }
-    if (manifest[FieldNames.Private] !== true) {
+    if (!hasValidPrivateField(manifest)) {
         throw new Error(`${getManifestErrorMessagePrefix(FieldNames.Private, manifest, manifestDirPath)} must be "true" if "${FieldNames.Workspaces}" is present. Received: ${manifest[FieldNames.Private]}`);
     }
     return manifest;

@@ -9,13 +9,13 @@ import {
   getMetadataForAllPackages,
   getPackagesToUpdate,
   getPackageManifest,
-  PackageManifest,
   updatePackage,
   updatePackages,
-  MonorepoPackageManifest,
   validateMonorepoPackageManifest,
   validatePackageManifestVersion,
   validatePackageManifestName,
+  MonorepoPackageManifest,
+  PolyrepoPackageManifest,
 } from './package-operations';
 import { ActionInputs, isMajorSemverDiff, WORKSPACE_ROOT } from './utils';
 
@@ -91,7 +91,7 @@ export async function performUpdate(actionInputs: ActionInputs): Promise<void> {
  */
 async function updatePolyrepo(
   newVersion: string,
-  manifest: PackageManifest,
+  manifest: PolyrepoPackageManifest,
   repositoryUrl: string,
 ): Promise<void> {
   await updatePackage(
@@ -118,10 +118,7 @@ async function updatePolyrepo(
 async function updateMonorepo(
   newVersion: string,
   versionDiff: SemverReleaseType,
-  rootManifest: Pick<
-    MonorepoPackageManifest,
-    FieldNames.Version | FieldNames.Workspaces
-  >,
+  rootManifest: MonorepoPackageManifest,
   repositoryUrl: string,
   tags: ReadonlySet<string>,
 ): Promise<void> {
